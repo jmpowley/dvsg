@@ -1,0 +1,13 @@
+__pycache__/
+*.pyc
+*.egg-info/
+*.DS_Store
+*.pkl
+*.fits
+*.csv
+*.jpg
+*.png
+
+
+
+
