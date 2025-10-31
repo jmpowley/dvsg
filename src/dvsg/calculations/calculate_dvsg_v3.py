@@ -9,9 +9,9 @@ from mangadap.util.fitsutil import DAPFitsUtil
 from astropy.io import fits
 from astropy.table import Table
 
-from .dvsg_tools import exclude_above_five_sigma, normalise_velocity_map
+from .dvsg_tools import exclude_above_five_sigma, normalise_velocity_map, minmax_normalise_velocity_map, zscore_normalise_velocity_map
 
-def load_map(plateifu : str, mode : str, bintype: str):
+def load_map(plateifu : str, mode : str, bintype: str, **extras):
     """ 
     Loads map products for a MaNGA galaxy from an input plateifu
 
@@ -116,11 +116,16 @@ def mask_map(sv_map, gv_map, sv_mask, gv_mask, bin_ids):
 
     return sv_flat, gv_flat
 
-def prepare_map(sv_flat, gv_flat):
+def prepare_map(sv_flat, gv_flat, norm_method, **extras):
     """
     Apply preprocessing steps to velocity maps before DVSG calculation.
 
-    Currently applies five sigma clip and min-max normalises between -1 and 1.
+    Currently applies five sigma clip and normalises between -1 and 1.
+
+    Returns
+    -------
+    sv_norm, gv_norm : np.ndarray
+        Preprocessed stellar and gas velocity maps.
     """
 
     # Apply sigma clip
@@ -128,12 +133,18 @@ def prepare_map(sv_flat, gv_flat):
     gv_excl = exclude_above_five_sigma(gv_flat)
 
     # Normalise velocity map
-    sv_norm = normalise_velocity_map(sv_excl)
-    gv_norm = normalise_velocity_map(gv_excl)
+    if norm_method == "minmax":
+        sv_norm = minmax_normalise_velocity_map(sv_excl)
+        gv_norm = minmax_normalise_velocity_map(gv_excl)
+    elif norm_method == "zscore":
+        sv_norm = zscore_normalise_velocity_map(sv_excl)
+        gv_norm = zscore_normalise_velocity_map(gv_excl)
+    else:
+        raise ValueError("norm_method must be 'minmax' or 'zscore'")
 
     return sv_norm, gv_norm
 
-def calculate_DVSG(sv_norm, gv_norm, return_residual):
+def calculate_dvsg(sv_norm, gv_norm, return_residual=False, **extras):
     """
     Calculates the DVSG value and standard error using the normalised stellar and gas velocity maps.
 
@@ -152,26 +163,26 @@ def calculate_DVSG(sv_norm, gv_norm, return_residual):
     else:
         return dvsg, dvsg_stderr
 
-def calculate_DVSG_from_plateifu(plateifu, mode='local', bintype='VOR10'):
+def calculate_dvsg_from_plateifu(plateifu, **dvsg_kwargs):
 
     # Load map
-    sv_map, gv_map, sv_mask, gv_mask, sv_ivar, gv_ivar, bin_ids, bin_ra, bin_dec, x_as, y_as = load_map(plateifu, mode, bintype)
+    sv_map, gv_map, sv_mask, gv_mask, sv_ivar, gv_ivar, bin_ids, bin_ra, bin_dec, x_as, y_as = load_map(plateifu, **dvsg_kwargs)
 
     # Extract masked values from bins
     sv_flat, gv_flat = mask_map(sv_map, gv_map, sv_mask, gv_mask, bin_ids)
 
     # Sigma clip and normalise maps
-    sv_norm, gv_norm = prepare_map(sv_flat, gv_flat)
+    sv_norm, gv_norm = prepare_map(sv_flat, gv_flat, **dvsg_kwargs)
 
     # Calculate DVSG
-    dvsg, dvsg_stderr = calculate_DVSG(sv_norm, gv_norm)
+    dvsg, dvsg_stderr = calculate_dvsg(sv_norm, gv_norm, **dvsg_kwargs)
 
     return dvsg, dvsg_stderr
 
-def calculate_radial_DVSG():
+def calculate_radial_dvsg():
     pass
 
-def return_dvsg_table(plateifu_list, dvsg_kwargs):
+def return_dvsg_table(plateifu_list, **dvsg_kwargs):
     """
     Function to create a table of DVSG values for a set of MaNGA galaxies using their plateifus and kwargs to pass to the dvsg package
 
@@ -194,16 +205,16 @@ def return_dvsg_table(plateifu_list, dvsg_kwargs):
     for plateifu in plateifu_list:
 
         # Load map
-        sv_map, gv_map, sv_mask, gv_mask, sv_ivar, gv_ivar, bin_ids, bin_ra, bin_dec, x_as, y_as = load_map(plateifu, mode=mode, bintype=bintype)
+        sv_map, gv_map, sv_mask, gv_mask, sv_ivar, gv_ivar, bin_ids, bin_ra, bin_dec, x_as, y_as = load_map(plateifu, **dvsg_kwargs)
 
         # Extract masked values from bins
         sv_flat, gv_flat = mask_map(sv_map, gv_map, sv_mask, gv_mask, bin_ids)
 
         # Sigma clip and normalise maps
-        sv_norm, gv_norm = prepare_map(sv_flat, gv_flat)
+        sv_norm, gv_norm = prepare_map(sv_flat, gv_flat, **dvsg_kwargs)
 
         # Calculate DVSG
-        dvsg, dvsg_stderr = calculate_DVSG(sv_norm, gv_norm, return_residual=False)
+        dvsg, dvsg_stderr = calculate_dvsg(sv_norm, gv_norm, return_residual=False)
 
         # Add DVSG data to lists
         dvsg_list.append(dvsg)
