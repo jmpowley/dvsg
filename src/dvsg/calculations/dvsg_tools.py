@@ -61,3 +61,47 @@ def normalise_velocity_map(velocity_map: np.ndarray):
     normalised_velocity_map = 2 * (velocity_map - min_val) / (max_val - min_val) - 1
 
     return normalised_velocity_map
+
+def minmax_normalise_velocity_map(velocity_map: np.ndarray):
+    '''
+    Normalises the given velocity map to the range [-1, 1] using the formula:
+
+        x' = 2 * ((x - min(x)) / (max(x) - min(x))) - 1 
+
+    NaN values are ignored when computing the minimum and maximum.
+    '''
+    velocity_map = np.asarray(velocity_map, dtype=float)  # ensure float copy
+
+    min_val, max_val = np.nanmin(velocity_map), np.nanmax(velocity_map)
+
+    if min_val == max_val or np.isnan(min_val) or np.isnan(max_val):
+        return np.full_like(velocity_map, np.nan)
+
+    normalised_velocity_map = 2 * (velocity_map - min_val) / (max_val - min_val) - 1
+
+    return normalised_velocity_map
+
+def zscore_normalise_velocity_map(velocity_map: np.ndarray):
+    '''
+    Apply Gaussian/Z-score normalisation to a velocity map
+
+    Z = (X - mu) / sigma
+
+    Where X is the data, mu is the mean of the data and sigma is the standard deviation
+
+    The normalised data has a mean of 0 and standard deviation of 1
+    '''
+    velocity_map = np.asarray(velocity_map, dtype=float)  # ensure float copy
+
+    if np.nanmin(velocity_map) == np.nanmax(velocity_map):
+        return np.full_like(velocity_map, np.nan)
+
+    mean_val = np.nanmean(velocity_map)
+    std_val = np.nanstd(velocity_map, ddof=1)
+
+    if std_val == 0 or np.isnan(std_val):
+        return np.full_like(velocity_map, np.nan)
+
+    normalised_map = (velocity_map - mean_val) / std_val
+
+    return normalised_map
