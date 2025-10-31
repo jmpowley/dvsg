@@ -1,8 +1,8 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
-from ..calculations.calculate_dvsg_v3 import load_map, normalise_velocity_map
-from ..calculations.dvsg_tools import exclude_above_five_sigma, normalise_velocity_map, minmax_normalise_velocity_map, zscore_normalise_velocity_map
+from ..calculations.calculate_dvsg_v3 import load_map
+from ..calculations.dvsg_tools import exclude_above_five_sigma, minmax_normalise_velocity_map, zscore1_normalise_velocity_map, zscore5_normalise_velocity_map
 
 def mask_maps_for_plotting(sv_map, gv_map, sv_mask, gv_mask):
     """
@@ -34,11 +34,14 @@ def create_stellar_gas_residual_maps_for_plotting(plateifu : str, norm_method : 
     if norm_method == "minmax":
         sv_norm = minmax_normalise_velocity_map(sv_excl)
         gv_norm = minmax_normalise_velocity_map(gv_excl)
-    elif norm_method == "zscore":
-        sv_norm = zscore_normalise_velocity_map(sv_excl)
-        gv_norm = zscore_normalise_velocity_map(gv_excl)
+    elif norm_method == "zscore1":
+        sv_norm = zscore1_normalise_velocity_map(sv_excl)
+        gv_norm = zscore1_normalise_velocity_map(gv_excl)
+    elif norm_method == "zscore5":
+        sv_norm = zscore5_normalise_velocity_map(sv_excl)
+        gv_norm = zscore5_normalise_velocity_map(gv_excl)
     else:
-        raise ValueError("norm_method must be 'minmax' or 'zscore'")
+        raise ValueError("norm_method must be 'minmax', 'zscore1' or 'zscore5'")
 
     residual = np.abs(sv_norm - gv_norm)
 

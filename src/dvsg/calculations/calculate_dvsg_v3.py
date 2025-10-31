@@ -9,7 +9,7 @@ from mangadap.util.fitsutil import DAPFitsUtil
 from astropy.io import fits
 from astropy.table import Table
 
-from .dvsg_tools import exclude_above_five_sigma, normalise_velocity_map, minmax_normalise_velocity_map, zscore_normalise_velocity_map
+from .dvsg_tools import exclude_above_five_sigma, normalise_velocity_map, minmax_normalise_velocity_map, zscore1_normalise_velocity_map, zscore5_normalise_velocity_map
 
 def load_map(plateifu : str, mode : str, bintype: str, **extras):
     """ 
@@ -136,11 +136,14 @@ def prepare_map(sv_flat, gv_flat, norm_method, **extras):
     if norm_method == "minmax":
         sv_norm = minmax_normalise_velocity_map(sv_excl)
         gv_norm = minmax_normalise_velocity_map(gv_excl)
-    elif norm_method == "zscore":
-        sv_norm = zscore_normalise_velocity_map(sv_excl)
-        gv_norm = zscore_normalise_velocity_map(gv_excl)
+    elif norm_method == "zscore1":
+        sv_norm = zscore1_normalise_velocity_map(sv_excl)
+        gv_norm = zscore1_normalise_velocity_map(gv_excl)
+    elif norm_method == "zscore5":
+        sv_norm = zscore5_normalise_velocity_map(sv_excl)
+        gv_norm = zscore5_normalise_velocity_map(gv_excl)
     else:
-        raise ValueError("norm_method must be 'minmax' or 'zscore'")
+        raise ValueError("norm_method must be 'minmax', 'zscore1' or 'zscore5'")
 
     return sv_norm, gv_norm
 
