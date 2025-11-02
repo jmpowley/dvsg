@@ -1,7 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
-from ..calculations.calculate_dvsg_v3 import load_map
+from ..calculations.calculate_dvsg import load_map
 from ..calculations.dvsg_tools import exclude_above_five_sigma, minmax_normalise_velocity_map, zscore1_normalise_velocity_map, zscore5_normalise_velocity_map, robust_scale_velocity_map, mad5_normalise_velocity_map
 
 import numpy as np
