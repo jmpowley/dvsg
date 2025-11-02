@@ -1,5 +1,6 @@
 import numpy as np
 from marvin import config
+# from marvin import Maps
 
 def download_map_from_plateifu(plateifu, bintype):
 
@@ -128,5 +129,47 @@ def zscore5_normalise_velocity_map(velocity_map: np.ndarray):
         return np.full_like(velocity_map, np.nan)
 
     normalised_map = (velocity_map - mean_val) / (5 * std_val)
+
+    return normalised_map
+
+def robust_scale_velocity_map(velocity_map: np.ndarray):
+
+    velocity_25, velocity_50, velocity_75 = np.nanpercentile(velocity_map, q=[25, 50, 75])
+
+    robust_scaled_map = (velocity_map - velocity_50) / (velocity_75 - velocity_25)
+
+    return robust_scaled_map
+
+def mad5_normalise_velocity_map(velocity_map: np.ndarray):
+    """
+    Apply 5σ robust (MAD-based) normalisation to a velocity map.
+
+    Z = (X - median(X)) / (5 * 1.4826 * MAD)
+
+    Where MAD = median(|X - median(X)|).
+    This is more robust to outliers than a standard deviation-based z-score.
+
+    The resulting map has median ≈ 0.
+    Values within ±5σ (in a Gaussian sense) map roughly to [-1, 1].
+    """
+    velocity_map = np.asarray(velocity_map, dtype=float)
+
+    if np.all(np.isnan(velocity_map)):
+        return np.full_like(velocity_map, np.nan)
+    if np.nanmin(velocity_map) == np.nanmax(velocity_map):
+        return np.full_like(velocity_map, np.nan)
+
+    median_val = np.nanmedian(velocity_map)
+    mad = np.nanmedian(np.abs(velocity_map - median_val))
+
+    if mad == 0 or np.isnan(mad):
+        return np.full_like(velocity_map, np.nan)
+
+    # Convert MAD to an equivalent σ estimate and normalise
+    scale = 5.0 * 1.4826 * mad
+    normalised_map = (velocity_map - median_val) / scale
+
+    # Optional: hard clip to [-1, 1]
+    # normalised_map = np.clip(normalised_map, -1.0, 1.0)
 
     return normalised_map
