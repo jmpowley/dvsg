@@ -9,7 +9,7 @@ from mangadap.util.fitsutil import DAPFitsUtil
 from astropy.io import fits
 from astropy.table import Table
 
-from .dvsg_tools import exclude_above_five_sigma, normalise_velocity_map, minmax_normalise_velocity_map, zscore1_normalise_velocity_map, zscore5_normalise_velocity_map
+from .dvsg_tools import exclude_above_five_sigma, minmax_normalise_velocity_map, zscore1_normalise_velocity_map, zscore5_normalise_velocity_map, robust_scale_velocity_map, mad5_normalise_velocity_map
 
 def load_map(plateifu : str, mode : str, bintype: str, **extras):
     """ 
@@ -98,9 +98,11 @@ def return_bin_coords(bin_ra, bin_dec, sv_uindx, gv_uindx):
     bin_x = bin_ra.ravel()[sv_uindx]
     bin_y = bin_dec.ravel()[sv_uindx]
 
-    return bin_x, bin_y
+    bin_coords = np.vstack([bin_x, bin_y]).T
 
-def mask_map(sv_map, gv_map, sv_mask, gv_mask, bin_ids):
+    return bin_coords
+
+def mask_map(sv_map, gv_map, sv_mask, gv_mask, bin_ids, **extras):
     """
     Extracts stellar and gas velocity values in map from each bin.
     
@@ -132,6 +134,9 @@ def prepare_map(sv_flat, gv_flat, norm_method, **extras):
     sv_excl = exclude_above_five_sigma(sv_flat)
     gv_excl = exclude_above_five_sigma(gv_flat)
 
+    sv_excl = np.array(sv_excl, copy=True)
+    gv_excl = np.array(gv_excl, copy=True)
+
     # Normalise velocity map
     if norm_method == "minmax":
         sv_norm = minmax_normalise_velocity_map(sv_excl)
@@ -142,8 +147,14 @@ def prepare_map(sv_flat, gv_flat, norm_method, **extras):
     elif norm_method == "zscore5":
         sv_norm = zscore5_normalise_velocity_map(sv_excl)
         gv_norm = zscore5_normalise_velocity_map(gv_excl)
+    elif norm_method == "robust":
+        sv_norm = robust_scale_velocity_map(sv_excl)
+        gv_norm = robust_scale_velocity_map(gv_excl)
+    elif norm_method == "mad5":
+        sv_norm = mad5_normalise_velocity_map(sv_excl)
+        gv_norm = mad5_normalise_velocity_map(gv_excl)
     else:
-        raise ValueError("norm_method must be 'minmax', 'zscore1' or 'zscore5'")
+        raise ValueError("norm_method must be 'minmax', 'zscore1', 'zscore5' or 'robust'")
 
     return sv_norm, gv_norm
 
@@ -157,12 +168,12 @@ def calculate_dvsg(sv_norm, gv_norm, return_residual=False, **extras):
     if not np.shape(sv_norm) == np.shape(gv_norm):
         raise Exception('sv_norm and gv_norm must have the same shape. Currently have shapes ' + str(np.shape(sv_norm)) + ' and ' + str(np.shape(gv_norm)))
     
-    residual_map = np.abs(sv_norm - gv_norm)
-    dvsg = np.nanmean(residual_map)
-    dvsg_stderr = np.nanstd(residual_map) / np.sqrt(np.count_nonzero(residual_map))
+    residual = np.abs(sv_norm - gv_norm)
+    dvsg = np.nanmean(residual)
+    dvsg_stderr = np.nanstd(residual) / np.sqrt(np.count_nonzero(residual))
     
     if return_residual:
-        return dvsg, dvsg_stderr, residual_map
+        return dvsg, dvsg_stderr, residual
     else:
         return dvsg, dvsg_stderr
 
@@ -182,8 +193,50 @@ def calculate_dvsg_from_plateifu(plateifu, **dvsg_kwargs):
 
     return dvsg, dvsg_stderr
 
-def calculate_radial_dvsg():
-    pass
+def calculate_radial_dvsg(bin_coords, residual, sort_ascending : bool, **extras):
+    """Calculate radial distance of bin co-ordinates and return with residuals
+
+    Parameters
+    ----------
+    bin_coords : array_like
+        Co-ordinates of bins.
+    residual : array_like
+        Residuals of each bin
+    sort_ascending : bool
+        Returns arrays sorted in ascending order by the bin distance
+
+    Returns
+    -------
+    bin_dists : array_like
+        Distances from each bin to the centre
+    residual : array_like
+        Same as input, but sorted by bin_dists if sort_ascending = True
+    """
+    
+    # Calculate distance from each bin to centre
+    bin_dists = np.sqrt(np.sum(bin_coords**2, axis=1))  # (x^2+y^2) summed along co-ordinate axis then sqrted
+
+    if sort_ascending:
+        bin_dists, residual = zip(*sorted(zip(bin_dists, residual)))
+
+    return bin_dists, residual
+
+def calculate_radial_dvsg_from_plateifu(plateifu : str, dvsg_kwargs : dict):
+
+    # Execute pipeline to calculate residuals
+    sv_map, gv_map, sv_mask, gv_mask, sv_ivar, gv_ivar, bin_ids, bin_ra, bin_dec, x_as, y_as = load_map(plateifu, **dvsg_kwargs)
+    sv_flat, gv_flat = mask_map(sv_map, gv_map, sv_mask, gv_mask, bin_ids, **dvsg_kwargs)
+    sv_norm, gv_norm = prepare_map(sv_flat, gv_flat, **dvsg_kwargs)
+    dvsg, dvsg_stderr, residual = calculate_dvsg(sv_norm, gv_norm, **dvsg_kwargs)
+    
+    # Load bin information
+    sv_ubins, sv_uindx, gv_ubins, gv_uindx = return_bin_indices(bin_ids)
+    bin_coords = return_bin_coords(bin_ra, bin_dec, sv_uindx, gv_uindx)
+
+    # Calculate radial dvsg
+    bin_dists, residual = calculate_radial_dvsg(bin_coords, residual, **dvsg_kwargs)
+
+    return bin_dists, residual
 
 def return_dvsg_table(plateifu_list, **dvsg_kwargs):
     """
