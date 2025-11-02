@@ -2,7 +2,196 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 from ..calculations.calculate_dvsg_v3 import load_map
-from ..calculations.dvsg_tools import exclude_above_five_sigma, minmax_normalise_velocity_map, zscore1_normalise_velocity_map, zscore5_normalise_velocity_map
+from ..calculations.dvsg_tools import exclude_above_five_sigma, minmax_normalise_velocity_map, zscore1_normalise_velocity_map, zscore5_normalise_velocity_map, robust_scale_velocity_map, mad5_normalise_velocity_map
+
+import numpy as np
+
+import numpy as np
+from matplotlib.ticker import FixedLocator
+
+def formatter_using_normalisers(original_velocity_map, norm_method="minmax", n_ticks=5, debug=False):
+    """
+    Build 5 evenly spaced normalised ticks and their mapped original-velocity values
+    by applying the same normalization functions you already use and inverting
+    via interpolation.
+
+    Returns:
+        locator, labels  -> FixedLocator for the colorbar ticks, and list of labels
+    Usage:
+        ticks = locator.locs  # or use locator.get_values()
+        cb.set_ticks(ticks)
+        cb.set_ticklabels(labels)
+    """
+    # finite-only original values
+    v = np.asarray(original_velocity_map, dtype=float)
+    finite_mask = np.isfinite(v)
+    v_fin = v[finite_mask]
+
+    if v_fin.size == 0:
+        if debug: print("[formatter] no finite pixels -> return nan labels")
+        ticks = np.linspace(-1.0, 1.0, n_ticks)
+        labels = [r"${:.2f}$ ({})".format(t, r"\mathrm{nan}") for t in ticks]
+        return FixedLocator(ticks), labels
+
+    # create monotonic grid of original values to evaluate the normaliser on
+    # using unique sorted finite values is simplest; if too big, sample evenly
+    orig_sorted = np.unique(np.sort(v_fin))
+    if orig_sorted.size > 2000:
+        # sample 2000 points uniformly from the cdf to speed up interpolation
+        idx = np.linspace(0, orig_sorted.size - 1, 2000).astype(int)
+        orig_sorted = orig_sorted[idx]
+
+    # compute normalised values using the selected normaliser
+    if norm_method == "minmax":
+        norm_vals = minmax_normalise_velocity_map(orig_sorted)
+    elif norm_method == "zscore1":
+        norm_vals = zscore1_normalise_velocity_map(orig_sorted)
+    elif norm_method == "zscore5":
+        norm_vals = zscore5_normalise_velocity_map(orig_sorted)
+    elif norm_method == "robust":
+        norm_vals = robust_scale_velocity_map(orig_sorted)
+    elif norm_method == "mad5":
+        norm_vals = mad5_normalise_velocity_map(orig_sorted)
+    else:
+        raise ValueError("Unknown norm_method: " + str(norm_method))
+
+    # drop NaNs from the mapping
+    valid = np.isfinite(norm_vals) & np.isfinite(orig_sorted)
+    if valid.sum() < 2:
+        # not enough valid mapping points
+        if debug: print("[formatter] too few valid points after normalisation")
+        ticks = np.linspace(-1.0, 1.0, n_ticks)
+        labels = [r"${:.2f}$ ({})".format(t, r"nan") for t in ticks]
+        return FixedLocator(ticks), labels
+
+    orig_sorted = orig_sorted[valid]
+    norm_vals = norm_vals[valid]
+
+    # ensure monotonicity of norm_vals for interpolation: sort pairs by norm_vals
+    order = np.argsort(norm_vals)
+    norm_sorted = norm_vals[order]
+    orig_for_norm_sorted = orig_sorted[order]
+
+    # If there are duplicate norm_sorted values, np.interp still works,
+    # but we prefer strictly monotonic so we unique them
+    uniq_norm, uniq_idx = np.unique(norm_sorted, return_index=True)
+    norm_sorted = uniq_norm
+    orig_for_norm_sorted = orig_for_norm_sorted[uniq_idx]
+
+    if debug:
+        print("[formatter] norm_method:", norm_method)
+        print("[formatter] norm_sorted range:", norm_sorted[0], norm_sorted[-1], "n_points:", norm_sorted.size)
+
+    # Choose n_ticks evenly spaced in the normalised range
+    norm_min, norm_max = norm_sorted[0], norm_sorted[-1]
+    ticks = np.linspace(norm_min, norm_max, n_ticks)
+
+    # Invert mapping by interpolation (safe because norm_sorted is monotonic)
+    orig_ticks = np.interp(ticks, norm_sorted, orig_for_norm_sorted)
+
+    if debug:
+        print("[formatter] ticks (normalised):", ticks)
+        print("[formatter] ticks (original):", orig_ticks)
+
+    # Build nicely formatted LaTeX labels (normalised with 2 dp, original with 1 dp)
+    labels = []
+    for nt, ot in zip(ticks, orig_ticks):
+        if np.isfinite(ot):
+            labels.append(r"${:.2f}$ ({:.1f})".format(nt, ot))
+        else:
+            labels.append(r"${:.2f}$ ({})".format(nt, r"\mathrm{nan}"))
+
+    # Return a FixedLocator (so you can set it on the colorbar without warnings) and labels
+    return FixedLocator(ticks), labels
+
+
+def formatter(normalised_ticks, original_velocity_map, norm_method="minmax"):
+    """
+    Create tick labels showing the normalised tick value and the corresponding
+    original velocity (in km/s) for a variety of normalisation methods.
+
+    Parameters
+    ----------
+    normalised_ticks : array-like
+        Tick positions read from the colorbar (normalised scale).
+    original_velocity_map : np.ndarray
+        The original (un-normalised) velocity map (used to compute min/max/mean/etc).
+    norm_method : str
+        One of 'minmax', 'zscore1', 'zscore5', 'robust', 'mad5'.
+
+    Returns
+    -------
+    list of str
+        Formatted LaTeX-ready tick labels, e.g. ['$0.50$ (120.3)', ...].
+    """
+
+    normalised_ticks = np.asarray(normalised_ticks, dtype=float)
+
+    # Work on a copy and drop NaNs for the summary stats
+    v = np.asarray(original_velocity_map, dtype=float)
+    v = v[np.isfinite(v)]
+
+    # default original ticks (fallback)
+    orig_ticks = np.full_like(normalised_ticks, np.nan, dtype=float)
+
+    # Apply five sigma clip to velocity map
+    clipped_velocity_map = exclude_above_five_sigma(original_velocity_map)
+
+    if norm_method == "minmax":
+        vmin, vmax = np.nanmin(clipped_velocity_map), np.nanmax(clipped_velocity_map)
+        if np.isnan(vmin) or np.isnan(vmax) or vmin == vmax:
+            orig_ticks[:] = np.nan
+        else:
+            # inverse of: norm = 2*(x - vmin)/(vmax - vmin) - 1
+            orig_ticks = vmin + (normalised_ticks + 1.0) / 2.0 * (vmax - vmin)
+
+    elif norm_method == "zscore1":
+        mu = np.nanmean(clipped_velocity_map)
+        sigma = np.nanstd(clipped_velocity_map, ddof=1)
+        if sigma == 0 or np.isnan(sigma):
+            orig_ticks[:] = np.nan
+        else:
+            orig_ticks = mu + sigma * normalised_ticks
+
+    elif norm_method == "zscore5":
+        mu = np.nanmean(clipped_velocity_map)
+        sigma = np.nanstd(clipped_velocity_map, ddof=1)
+        if sigma == 0 or np.isnan(sigma):
+            orig_ticks[:] = np.nan
+        else:
+            orig_ticks = mu + (5.0 * sigma) * normalised_ticks
+
+    elif norm_method == "robust":
+        q25, q50, q75 = np.nanpercentile(clipped_velocity_map, q=[25, 50, 75])
+        scale = (q75 - q25)
+        if scale == 0 or np.isnan(scale):
+            orig_ticks[:] = np.nan
+        else:
+            # robust_scale = (v - q50) / (q75 - q25)
+            orig_ticks = q50 + scale * normalised_ticks
+
+    elif norm_method == "mad5":
+        med = np.nanmedian(clipped_velocity_map)
+        mad = np.nanmedian(np.abs(clipped_velocity_map - med))
+        # your mad5 normaliser used scale = 5 * 1.4826 * mad
+        if mad == 0 or np.isnan(mad):
+            orig_ticks[:] = np.nan
+        else:
+            scale = 5.0 * 1.4826 * mad
+            orig_ticks = med + scale * normalised_ticks
+
+    else:
+        raise ValueError("Unknown norm_method: " + str(norm_method))
+
+    # Format labels: normalised value with 2 d.p., original with 1 d.p.
+    labels = []
+    for nt, ot in zip(normalised_ticks, orig_ticks):
+        if np.isfinite(ot):
+            labels.append(r"${:.2f}$ ({:.1f})".format(nt, ot))
+        else:
+            labels.append(r"${:.2f}$ ({})".format(nt, r"nan"))
+
+    return labels
 
 def mask_maps_for_plotting(sv_map, gv_map, sv_mask, gv_mask):
     """
@@ -30,6 +219,9 @@ def create_stellar_gas_residual_maps_for_plotting(plateifu : str, norm_method : 
     sv_excl = exclude_above_five_sigma(sv_ma)
     gv_excl = exclude_above_five_sigma(gv_ma)
 
+    sv_excl = np.array(sv_excl, copy=True)
+    gv_excl = np.array(gv_excl, copy=True)
+
     # Normalise velocity map
     if norm_method == "minmax":
         sv_norm = minmax_normalise_velocity_map(sv_excl)
@@ -40,8 +232,14 @@ def create_stellar_gas_residual_maps_for_plotting(plateifu : str, norm_method : 
     elif norm_method == "zscore5":
         sv_norm = zscore5_normalise_velocity_map(sv_excl)
         gv_norm = zscore5_normalise_velocity_map(gv_excl)
+    elif norm_method == "robust":
+        sv_norm = robust_scale_velocity_map(sv_excl)
+        gv_norm = robust_scale_velocity_map(gv_excl)
+    elif norm_method == "mad5":
+        sv_norm = mad5_normalise_velocity_map(sv_excl)
+        gv_norm = mad5_normalise_velocity_map(gv_excl)
     else:
-        raise ValueError("norm_method must be 'minmax', 'zscore1' or 'zscore5'")
+        raise ValueError("norm_method must be 'minmax', 'zscore1', 'zscore5', 'robust' or 'mad5'")
 
     residual = np.abs(sv_norm - gv_norm)
 
@@ -212,7 +410,7 @@ def plot_stellar_gas_residual_visual_maps(x_as, y_as, bin_x, bin_y, sv_norm, gv_
 
     plt.tight_layout()
 
-def plot_stellar_gas_residual_visual_maps_on_axes(ax, plateifu, x_as, y_as, bin_x, bin_y, sv_norm, gv_norm, residual, sdss_im, dvsg, dvsg_stderr, plot_kwargs : dict = None):
+def plot_stellar_gas_residual_visual_maps_on_axes(ax, plateifu, x_as, y_as, bin_ra, bin_dec, sv_map, gv_map, sv_norm, gv_norm, residual, im, dvsg, dvsg_stderr, dvsg_kwargs, plot_kwargs : dict = None):
     """
     Plot the 4-panel stellar/gas/residual/visual for a single galaxy on pre-existing axes.
     
@@ -249,21 +447,33 @@ def plot_stellar_gas_residual_visual_maps_on_axes(ax, plateifu, x_as, y_as, bin_
     cb0 = ax[0].figure.colorbar(im0, ax=ax[0], fraction=0.05, pad=0.03)
     cb0.set_label(r"$V_\star\ / \ \mathrm{Norm.\ (km\ s^{-1})}$", labelpad=labelpad, fontsize=labsize)
     ax[0].text(0.03, 0.97, plateifu, fontsize=txtsize, transform=ax[0].transAxes, va='top', ha='left')
+    # ticks = cb0.get_ticks()
+    # cb0.set_ticks(ticks)
+    # cb0.set_ticklabels(formatter(ticks, sv_map, norm_method=dvsg_kwargs["norm_method"]))
+    locator, labels = formatter_using_normalisers(sv_map, norm_method=dvsg_kwargs["norm_method"])
+    cb0.set_ticks(locator.locs)
+    cb0.set_ticklabels(labels)
 
     # Gas
     im1 = ax[1].pcolormesh(x_as, y_as, gv_norm, cmap='RdBu_r', shading='auto')
-    gv_cb = ax[1].figure.colorbar(im1, ax=ax[1], fraction=0.05, pad=0.03)
-    gv_cb.set_label(r"$V_{g}\ / \ \mathrm{Norm.\ (km\ s^{-1})}$", labelpad=labelpad, fontsize=labsize)
+    cb1 = ax[1].figure.colorbar(im1, ax=ax[1], fraction=0.05, pad=0.03)
+    cb1.set_label(r"$V_{g}\ / \ \mathrm{Norm.\ (km\ s^{-1})}$", labelpad=labelpad, fontsize=labsize)
+    # ticks = cb1.get_ticks()
+    # cb1.set_ticks(ticks)
+    # cb1.set_ticklabels(formatter(ticks, gv_map, norm_method=dvsg_kwargs["norm_method"]))
+    locator, labels = formatter_using_normalisers(gv_map, norm_method=dvsg_kwargs["norm_method"])
+    cb1.set_ticks(locator.locs)
+    cb1.set_ticklabels(labels)
 
     # Residual
     im2 = ax[2].pcolormesh(x_as, y_as, residual, cmap='viridis', shading='auto')
-    cb3 = ax[2].figure.colorbar(im2, ax=ax[2], fraction=0.05, pad=0.03)
-    cb3.set_label(r"Residual / Norm.", labelpad=labelpad, fontsize=labsize)
+    cb2 = ax[2].figure.colorbar(im2, ax=ax[2], fraction=0.05, pad=0.03)
+    cb2.set_label(r"Residual / Norm.", labelpad=labelpad, fontsize=labsize)
     dvsg_str = rf'$\Delta V_{{\star-g}}$ = {dvsg:.2f}' if not plot_stderr else rf'$\Delta V_{{\star-g}}$ = {dvsg:.2f} ± {dvsg_stderr:.2f}'
     ax[2].text(0.97, 0.03, dvsg_str, fontsize=txtsize, transform=ax[2].transAxes, va='bottom', ha='right')
 
     # Visual
-    im3 = ax[3].imshow(sdss_im, origin="upper")
+    im3 = ax[3].imshow(im, origin="upper")
 
     # Subplot formatting
     for i in range(4):
@@ -272,7 +482,7 @@ def plot_stellar_gas_residual_visual_maps_on_axes(ax, plateifu, x_as, y_as, bin_
             ax[i].set_ylabel(r'$\Delta \delta \ \;[\mathrm{arcsec}]$', size=labsize)
             ax[i].invert_xaxis()
             if plot_bins:
-                ax[i].scatter(bin_x, bin_y, color='k', marker='.', s=50, lw=0)
+                ax[i].scatter(bin_ra, bin_dec, color='k', marker='.', s=50, lw=0)
         else:
             ax[i].set_xticks([])
             ax[i].set_yticks([])
