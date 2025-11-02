@@ -1,5 +1,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
+from matplotlib.patches import Circle
 
 from ..calculations.calculate_dvsg import load_map
 from ..calculations.dvsg_tools import exclude_above_five_sigma, minmax_normalise_velocity_map, zscore1_normalise_velocity_map, zscore5_normalise_velocity_map, robust_scale_velocity_map, mad5_normalise_velocity_map
@@ -103,95 +104,6 @@ def formatter_using_normalisers(original_velocity_map, norm_method="minmax", n_t
 
     # Return a FixedLocator (so you can set it on the colorbar without warnings) and labels
     return FixedLocator(ticks), labels
-
-
-def formatter(normalised_ticks, original_velocity_map, norm_method="minmax"):
-    """
-    Create tick labels showing the normalised tick value and the corresponding
-    original velocity (in km/s) for a variety of normalisation methods.
-
-    Parameters
-    ----------
-    normalised_ticks : array-like
-        Tick positions read from the colorbar (normalised scale).
-    original_velocity_map : np.ndarray
-        The original (un-normalised) velocity map (used to compute min/max/mean/etc).
-    norm_method : str
-        One of 'minmax', 'zscore1', 'zscore5', 'robust', 'mad5'.
-
-    Returns
-    -------
-    list of str
-        Formatted LaTeX-ready tick labels, e.g. ['$0.50$ (120.3)', ...].
-    """
-
-    normalised_ticks = np.asarray(normalised_ticks, dtype=float)
-
-    # Work on a copy and drop NaNs for the summary stats
-    v = np.asarray(original_velocity_map, dtype=float)
-    v = v[np.isfinite(v)]
-
-    # default original ticks (fallback)
-    orig_ticks = np.full_like(normalised_ticks, np.nan, dtype=float)
-
-    # Apply five sigma clip to velocity map
-    clipped_velocity_map = exclude_above_five_sigma(original_velocity_map)
-
-    if norm_method == "minmax":
-        vmin, vmax = np.nanmin(clipped_velocity_map), np.nanmax(clipped_velocity_map)
-        if np.isnan(vmin) or np.isnan(vmax) or vmin == vmax:
-            orig_ticks[:] = np.nan
-        else:
-            # inverse of: norm = 2*(x - vmin)/(vmax - vmin) - 1
-            orig_ticks = vmin + (normalised_ticks + 1.0) / 2.0 * (vmax - vmin)
-
-    elif norm_method == "zscore1":
-        mu = np.nanmean(clipped_velocity_map)
-        sigma = np.nanstd(clipped_velocity_map, ddof=1)
-        if sigma == 0 or np.isnan(sigma):
-            orig_ticks[:] = np.nan
-        else:
-            orig_ticks = mu + sigma * normalised_ticks
-
-    elif norm_method == "zscore5":
-        mu = np.nanmean(clipped_velocity_map)
-        sigma = np.nanstd(clipped_velocity_map, ddof=1)
-        if sigma == 0 or np.isnan(sigma):
-            orig_ticks[:] = np.nan
-        else:
-            orig_ticks = mu + (5.0 * sigma) * normalised_ticks
-
-    elif norm_method == "robust":
-        q25, q50, q75 = np.nanpercentile(clipped_velocity_map, q=[25, 50, 75])
-        scale = (q75 - q25)
-        if scale == 0 or np.isnan(scale):
-            orig_ticks[:] = np.nan
-        else:
-            # robust_scale = (v - q50) / (q75 - q25)
-            orig_ticks = q50 + scale * normalised_ticks
-
-    elif norm_method == "mad5":
-        med = np.nanmedian(clipped_velocity_map)
-        mad = np.nanmedian(np.abs(clipped_velocity_map - med))
-        # your mad5 normaliser used scale = 5 * 1.4826 * mad
-        if mad == 0 or np.isnan(mad):
-            orig_ticks[:] = np.nan
-        else:
-            scale = 5.0 * 1.4826 * mad
-            orig_ticks = med + scale * normalised_ticks
-
-    else:
-        raise ValueError("Unknown norm_method: " + str(norm_method))
-
-    # Format labels: normalised value with 2 d.p., original with 1 d.p.
-    labels = []
-    for nt, ot in zip(normalised_ticks, orig_ticks):
-        if np.isfinite(ot):
-            labels.append(r"${:.2f}$ ({:.1f})".format(nt, ot))
-        else:
-            labels.append(r"${:.2f}$ ({})".format(nt, r"nan"))
-
-    return labels
 
 def mask_maps_for_plotting(sv_map, gv_map, sv_mask, gv_mask):
     """
@@ -323,7 +235,7 @@ def plot_stellar_gas_residual_maps(x_as, y_as, bin_x, bin_y, sv_norm, gv_norm, r
 
     plt.tight_layout()
 
-def plot_stellar_gas_residual_visual_maps(x_as, y_as, bin_x, bin_y, sv_norm, gv_norm, residual, sdss_im, dvsg, dvsg_stderr, plot_kwargs : dict = None):
+def plot_stellar_gas_residual_visual_maps(x_as, y_as, bin_x, bin_y, sv_norm, gv_norm, residual, sdss_im, dvsg, dvsg_stderr, r_eff : float = None, plot_kwargs : dict = None):
 
     plot_defaults = {
         "labsize" : 20,
@@ -331,9 +243,11 @@ def plot_stellar_gas_residual_visual_maps(x_as, y_as, bin_x, bin_y, sv_norm, gv_
         "tcksize" : 20,
         "labelpad" : 0,
         "plot_stderr" : False,
-        "plot_bins" : False
+        "plot_bins" : False,
+        "plot_r_eff" : False,
     }
 
+    # Set plot kwargs
     if plot_kwargs is not None:
         for key in plot_defaults.keys():
             if key not in plot_kwargs.keys():
@@ -350,6 +264,7 @@ def plot_stellar_gas_residual_visual_maps(x_as, y_as, bin_x, bin_y, sv_norm, gv_
     # -- booleans
     plot_stderr = plot_kwargs.get('plot_stderr')
     plot_bins = plot_kwargs.get('plot_bins')
+    plot_r_eff = plot_kwargs.get('plot_r_eff')
 
     # Enable LaTeX
     plt.rcParams.update({
@@ -410,37 +325,40 @@ def plot_stellar_gas_residual_visual_maps(x_as, y_as, bin_x, bin_y, sv_norm, gv_
 
     plt.tight_layout()
 
-def plot_stellar_gas_residual_visual_maps_on_axes(ax, plateifu, x_as, y_as, bin_ra, bin_dec, sv_map, gv_map, sv_norm, gv_norm, residual, im, dvsg, dvsg_stderr, dvsg_kwargs, plot_kwargs : dict = None):
+def plot_stellar_gas_residual_visual_maps_on_axes(ax, plateifu, x_as, y_as, bin_ra, bin_dec, sv_map, gv_map, sv_norm, gv_norm, residual, im, dvsg, dvsg_stderr, dvsg_kwargs, r_eff : float = None, plot_kwargs : dict = None):
     """
     Plot the 4-panel stellar/gas/residual/visual for a single galaxy on pre-existing axes.
     
     ax : array of 4 matplotlib axes (one row of 4 panels)
     Other arguments same as original function.
     """
-    
+
+    # Set plot kwargs
+    # -- define defaults
     plot_defaults = {
         "labsize" : 20,
         "txtsize" : 20,
         "tcksize" : 20,
-        "labelpad" : 5,
+        "labelpad" : 0,
         "plot_stderr" : False,
-        "plot_bins" : False
+        "plot_bins" : False,
+        "plot_r_eff" : False,
     }
-
+    # -- apply kwargs
     if plot_kwargs is not None:
         for key in plot_defaults.keys():
             if key not in plot_kwargs.keys():
                 plot_kwargs[key] = plot_defaults[key]
     else:
         plot_kwargs = plot_defaults
-
-    # Extract plot kwargs
+    # -- extract
     labsize = plot_kwargs.get('labsize')
     txtsize = plot_kwargs.get('txtsize')
     tcksize = plot_kwargs.get('tcksize')
     labelpad = plot_kwargs.get('labelpad')
     plot_stderr = plot_kwargs.get('plot_stderr')
     plot_bins = plot_kwargs.get('plot_bins')
+    plot_r_eff = plot_kwargs.get('plot_r_eff')
 
     # Stellar
     im0 = ax[0].pcolormesh(x_as, y_as, sv_norm, cmap='RdBu_r', shading='auto')
@@ -453,6 +371,8 @@ def plot_stellar_gas_residual_visual_maps_on_axes(ax, plateifu, x_as, y_as, bin_
     locator, labels = formatter_using_normalisers(sv_map, norm_method=dvsg_kwargs["norm_method"])
     cb0.set_ticks(locator.locs)
     cb0.set_ticklabels(labels)
+    if plot_r_eff and r_eff is not None:
+        ax[0].add_patch(Circle((0, 0), r_eff, fill=False, edgecolor='k', linewidth=1.2, transform=ax[0].transData))
 
     # Gas
     im1 = ax[1].pcolormesh(x_as, y_as, gv_norm, cmap='RdBu_r', shading='auto')
@@ -464,6 +384,8 @@ def plot_stellar_gas_residual_visual_maps_on_axes(ax, plateifu, x_as, y_as, bin_
     locator, labels = formatter_using_normalisers(gv_map, norm_method=dvsg_kwargs["norm_method"])
     cb1.set_ticks(locator.locs)
     cb1.set_ticklabels(labels)
+    if plot_r_eff and r_eff is not None:
+        ax[1].add_patch(Circle((0, 0), r_eff, fill=False, edgecolor='k', linewidth=1.2, transform=ax[1].transData))
 
     # Residual
     im2 = ax[2].pcolormesh(x_as, y_as, residual, cmap='viridis', shading='auto')
@@ -471,6 +393,8 @@ def plot_stellar_gas_residual_visual_maps_on_axes(ax, plateifu, x_as, y_as, bin_
     cb2.set_label(r"Residual / Norm.", labelpad=labelpad, fontsize=labsize)
     dvsg_str = rf'$\Delta V_{{\star-g}}$ = {dvsg:.2f}' if not plot_stderr else rf'$\Delta V_{{\star-g}}$ = {dvsg:.2f} ± {dvsg_stderr:.2f}'
     ax[2].text(0.97, 0.03, dvsg_str, fontsize=txtsize, transform=ax[2].transAxes, va='bottom', ha='right')
+    if plot_r_eff and r_eff is not None:
+        ax[2].add_patch(Circle((0, 0), r_eff, fill=False, edgecolor='k', linewidth=1.2, transform=ax[2].transData))
 
     # Visual
     im3 = ax[3].imshow(im, origin="upper")
