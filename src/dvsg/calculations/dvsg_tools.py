@@ -1,6 +1,9 @@
+import os
+
 import numpy as np
+
 from marvin import config
-# from marvin import Maps
+from marvin.tools import Maps
 
 def download_map_from_plateifu(plateifu, bintype):
 
@@ -8,6 +11,13 @@ def download_map_from_plateifu(plateifu, bintype):
     config.setDR('DR17')
     config.switchSasUrl(sasmode='mirror')
 
+    # Check map not already downloaded
+    plate, ifu = plateifu.split('-')
+    local_path = f'/Users/Jonah/sas/dr17/manga/spectro/analysis/v3_1_1/3.1.0/VOR10-MILESHC-MASTARSSP/{plate}/{ifu}/manga-{plate}-{ifu}-MAPS-VOR10-MILESHC-MASTARSSP.fits.gz'
+    if os.path.exists(local_path):
+        print(f"PLATEIFU {plateifu} already downloaded")
+        return
+    
     try:
         map = Maps(plateifu, mode='remote', bintype=bintype)
         map.download()
