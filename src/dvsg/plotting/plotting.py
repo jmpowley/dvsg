@@ -157,7 +157,7 @@ def create_stellar_gas_residual_maps_for_plotting(plateifu : str, norm_method : 
 
     return sv_norm, gv_norm, residual
 
-def plot_stellar_gas_residual_maps(x_as, y_as, bin_x, bin_y, sv_norm, gv_norm, residual, dvsg, dvsg_stderr, plot_kwargs : dict = None):
+def plot_stellar_gas_residual_maps(x_as, y_as, bin_ra, bin_dec, sv_norm, gv_norm, residual, dvsg, dvsg_stderr, plot_kwargs : dict = None):
 
     plot_defaults = {
         "labsize" : 20,
@@ -231,9 +231,117 @@ def plot_stellar_gas_residual_maps(x_as, y_as, bin_x, bin_y, sv_norm, gv_norm, r
 
         # Plot bins
         if plot_bins:
-            ax[i].scatter(bin_x, bin_y, color='k', marker='.', s=50, lw=0)
+            ax[i].scatter(bin_ra, bin_dec, color='k', marker='.', s=50, lw=0)
 
     plt.tight_layout()
+
+def plot_stellar_gas_residual_maps_on_axes(
+    ax,
+    plateifu,
+    x_as, y_as,
+    bin_ra, bin_dec,
+    sv_map, gv_map,
+    sv_norm, gv_norm, residual,
+    dvsg, dvsg_stderr,
+    dvsg_kwargs: dict,
+    r_eff: float = None,
+    plot_kwargs: dict = None
+):
+    """
+    Plot the 3-panel stellar / gas / residual maps on pre-existing axes.
+
+    ax : array-like of 3 matplotlib Axes (ax[0], ax[1], ax[2])
+    """
+
+    # ----- defaults and apply kwargs (same pattern as your other functions)
+    plot_defaults = {
+        "labsize": 20,
+        "txtsize": 20,
+        "tcksize": 20,
+        "labelpad": 0,
+        "plot_stderr": False,
+        "plot_bins": False,
+        "plot_r_eff": False,
+    }
+    if plot_kwargs is not None:
+        for key in plot_defaults:
+            if key not in plot_kwargs:
+                plot_kwargs[key] = plot_defaults[key]
+    else:
+        plot_kwargs = plot_defaults
+
+    print(plot_kwargs)
+
+    labsize = plot_kwargs.get('labsize')
+    txtsize = plot_kwargs.get('txtsize')
+    tcksize = plot_kwargs.get('tcksize')
+    labelpad = plot_kwargs.get('labelpad')
+    plot_stderr = plot_kwargs.get('plot_stderr')
+    plot_bins = plot_kwargs.get('plot_bins')
+    plot_r_eff = plot_kwargs.get('plot_r_eff')
+
+    # ----- Stellar panel
+    im0 = ax[0].pcolormesh(x_as, y_as, sv_norm, cmap='RdBu_r', shading='auto')
+    cb0 = ax[0].figure.colorbar(im0, ax=ax[0], fraction=0.05, pad=0.03)
+    cb0.set_label(r"$V_{\star}~\rm{Norm.~(km~s^{-1})}$",
+                  labelpad=labelpad, fontsize=labsize)
+
+    # use the same formatter routine you use elsewhere
+    locator, labels = formatter_using_normalisers(sv_map, norm_method=dvsg_kwargs["norm_method"])
+    cb0.set_ticks(locator.locs)
+    cb0.set_ticklabels(labels)
+    cb0.ax.tick_params(axis='y', which='major', labelsize=tcksize)
+
+    ax[0].text(0.03, 0.97, plateifu, fontsize=txtsize, transform=ax[0].transAxes, va='top', ha='left')
+    if plot_r_eff and r_eff is not None:
+        ax[0].add_patch(Circle((0, 0), r_eff, fill=False, edgecolor='k',
+                              linewidth=1.2, transform=ax[0].transData))
+
+    # ----- Gas panel
+    im1 = ax[1].pcolormesh(x_as, y_as, gv_norm, cmap='RdBu_r', shading='auto')
+    cb1 = ax[1].figure.colorbar(im1, ax=ax[1], fraction=0.05, pad=0.03)
+    cb1.set_label(r"$V_{\rm gas}~\rm{Norm.~(km~s^{-1})}$",
+                  labelpad=labelpad, fontsize=labsize)
+
+    locator, labels = formatter_using_normalisers(gv_map, norm_method=dvsg_kwargs["norm_method"])
+    cb1.set_ticks(locator.locs)
+    cb1.set_ticklabels(labels)
+    cb1.ax.tick_params(axis='y', which='major', labelsize=tcksize)
+
+    if plot_r_eff and r_eff is not None:
+        ax[1].add_patch(Circle((0, 0), r_eff, fill=False, edgecolor='k',
+                              linewidth=1.2, transform=ax[1].transData))
+
+    # ----- Residual panel
+    im2 = ax[2].pcolormesh(x_as, y_as, residual, cmap='viridis', shading='auto')
+    cb2 = ax[2].figure.colorbar(im2, ax=ax[2], fraction=0.05, pad=0.03)
+    cb2.set_label(r"Residual / Norm.", labelpad=labelpad, fontsize=labsize)
+    cb2.ax.tick_params(axis='y', which='major', labelsize=tcksize)
+
+    dvsg_str = (rf'$\Delta V_{{\star-g}}$ = {dvsg:.2f}'
+                if not plot_stderr else
+                rf'$\Delta V_{{\star-g}}$ = {dvsg:.2f} ± {dvsg_stderr:.2f}')
+    ax[2].text(0.97, 0.03, dvsg_str, fontsize=txtsize,
+               transform=ax[2].transAxes, va='bottom', ha='right')
+
+    if plot_r_eff and r_eff is not None:
+        ax[2].add_patch(Circle((0, 0), r_eff, fill=False, edgecolor='k',
+                              linewidth=1.2, transform=ax[2].transData))
+
+    # ----- Subplot formatting (labels, invert RA, bins, aspect)
+    for i in range(3):
+        ax[i].set_xlabel(r'$\Delta \alpha~[\rm{arcsec}]$', size=labsize)
+        ax[i].set_ylabel(r'$\Delta \delta ~[\rm{arcsec}]$', size=labsize)
+
+        ax[i].tick_params(axis='both', which='major', labelsize=tcksize)
+
+        ax[i].invert_xaxis()
+        if plot_bins:
+            ax[i].scatter(bin_ra, bin_dec, color='k', marker='.', s=50, lw=0)
+        ax[i].set_aspect('equal')
+
+    # Caller can call plt.tight_layout() or manage the figure layout.
+    return ax
 
 def plot_stellar_gas_residual_visual_maps(x_as, y_as, bin_x, bin_y, sv_norm, gv_norm, residual, sdss_im, dvsg, dvsg_stderr, r_eff : float = None, plot_kwargs : dict = None):
 
