@@ -5,6 +5,9 @@ import numpy as np
 from marvin import config
 from marvin.tools import Maps
 
+# ---------------------
+# Map loading functions
+# ---------------------
 def download_map_from_plateifu(plateifu, bintype):
 
     # Set Marvin release to DR17 and avoid API error
@@ -17,7 +20,6 @@ def download_map_from_plateifu(plateifu, bintype):
     if os.path.exists(local_path):
         print(f"PLATEIFU {plateifu} already downloaded")
         return
-    
     try:
         map = Maps(plateifu, mode='remote', bintype=bintype)
         map.download()
@@ -25,6 +27,9 @@ def download_map_from_plateifu(plateifu, bintype):
     except Exception as e:
         print(f'Error: unable to download map {plateifu}: {e}')
 
+# -------------
+# Preprocessing
+# -------------
 def exclude_above_five_sigma(velocity_map: np.ndarray):
     '''Excludes any values in a velocity map greater than 5 standard deviations
     from the mean velocity of the map.
@@ -55,6 +60,9 @@ def exclude_above_five_sigma(velocity_map: np.ndarray):
 
     return excluded_velocity_map
 
+# -----------------------
+# Normalisation functions
+# -----------------------
 def normalise_velocity_map(velocity_map: np.ndarray):
     '''
     Normalises the given velocity map to the range [-1, 1] using the formula:
@@ -183,3 +191,8 @@ def mad5_normalise_velocity_map(velocity_map: np.ndarray):
     # normalised_map = np.clip(normalised_map, -1.0, 1.0)
 
     return normalised_map
+
+# ----------------
+# Return functions
+# ----------------
+

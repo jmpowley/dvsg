@@ -1,0 +1,126 @@
+import os
+
+import numpy as np
+
+from astropy.io import fits
+
+from marvin import config
+from marvin.tools import Maps
+
+from mangadap.util.fitsutil import DAPFitsUtil
+
+# -----------------
+# Loading functions
+# -----------------
+def download_map_from_plateifu(plateifu, bintype):
+
+    # Set Marvin release to DR17 and avoid API error
+    config.setDR('DR17')
+    config.switchSasUrl(sasmode='mirror')
+
+    # Check map not already downloaded
+    plate, ifu = plateifu.split('-')
+    local_path = f'/Users/Jonah/sas/dr17/manga/spectro/analysis/v3_1_1/3.1.0/{bintype}-MILESHC-MASTARSSP/{plate}/{ifu}/manga-{plate}-{ifu}-MAPS-{bintype}-MILESHC-MASTARSSP.fits.gz'
+    if os.path.exists(local_path):
+        print(f"PLATEIFU {plateifu} already downloaded")
+        return
+    try:
+        map = Maps(plateifu, mode='remote', bintype=bintype)
+        map.download()
+        print(f'Map {plateifu} downloaded!')
+    except Exception as e:
+        print(f'Error: unable to download map {plateifu}: {e}')
+
+def load_map(plateifu : str, mode : str, bintype: str, **extras):
+    """ 
+    Loads map products for a MaNGA galaxy from an input plateifu
+
+    Returns the velocity map, mask, inverse variance map, and bin information for the stellar and Halpha gas map.
+    """
+
+    # Access maps locally
+    if mode == 'local':
+        plate, ifu = plateifu.split('-')
+        local_path = f'/Users/Jonah/sas/dr17/manga/spectro/analysis/v3_1_1/3.1.0/VOR10-MILESHC-MASTARSSP/{plate}/{ifu}/manga-{plate}-{ifu}-MAPS-VOR10-MILESHC-MASTARSSP.fits.gz'
+
+        # Only run if local path exists
+        if os.path.exists(local_path):
+            try:
+                hdul = fits.open(local_path)
+
+                # Extract stellar and gas velocity products
+                # -- velocity maps
+                sv_map = hdul['STELLAR_VEL'].data
+                gv_map = hdul['EMLINE_GVEL'].data[23]
+                # -- masks
+                sv_mask = hdul['STELLAR_VEL_MASK'].data
+                gv_mask = hdul['EMLINE_GVEL_MASK'].data[23]
+                # -- inverse variance maps
+                sv_ivar = hdul['STELLAR_VEL_IVAR'].data
+                gv_ivar = hdul['EMLINE_GVEL_IVAR'].data[23]
+                # -- bin information
+                bin_ids = hdul['BINID'].data
+                # -- spatial information
+                x_as, y_as = hdul['SPX_SKYCOO'].data  # x/y spaxel offsets in arcseconds
+                bin_ra, bin_dec = hdul['BIN_LWSKYCOO'].data  # bin offsets in RA and DEC
+            except Exception as e:
+                print(f'Error loading {plateifu} using local method: {e}')
+        else:
+            raise ValueError(f'Local path {local_path} could not be found')
+
+    # Access maps remotely
+    else:
+        try:
+            # Set Marvin release to DR17 and avoid API error
+            config.setDR('DR17')
+            config.switchSasUrl(sasmode='mirror')
+
+            maps = Maps(plateifu=plateifu, mode='remote', bintype=bintype)
+            print('Using remote file')
+            
+            # Extract stellar and gas velocity products
+            # -- velocity maps
+            sv_map = maps['stellar_vel'].value
+            gv_map = maps['emline_gvel_ha_6564'].value
+            # -- masks
+            sv_mask = maps['stellar_vel_mask'].value
+            gv_mask = maps['emline_gvel_mask_ha_6564'].value
+            # -- inverse variance maps
+            sv_ivar = maps['stellar_vel_ivar'].data
+            gv_ivar = maps['emline_gvel_ivar_ha_6564'].value
+            # -- bin ids
+            # TODO: Add bin_id info for remote maps
+
+        except Exception as e:
+            print(f'Error loading {plateifu} using remote method: {e}')
+
+    return sv_map, gv_map, sv_mask, gv_mask, sv_ivar, gv_ivar, bin_ids, bin_ra, bin_dec, x_as, y_as
+
+# ----------------
+# Return functions
+# ----------------
+def return_bin_indices(bin_ids):
+    """
+    Returns the unique bins and bin indices of a MaNGA galaxy from the input bin ids and x and y bin information.
+    """
+
+    # Get the unique indices of the stellar and gas velocity bins
+    sv_bins = bin_ids[1]
+    gv_bins = bin_ids[3]
+    sv_ubins, sv_uindx = DAPFitsUtil.unique_bins(sv_bins, return_index=True)
+    gv_ubins, gv_uindx = DAPFitsUtil.unique_bins(gv_bins, return_index=True)
+
+    return sv_ubins, sv_uindx, gv_ubins, gv_uindx
+
+def return_bin_coords(bin_ra, bin_dec, sv_uindx, gv_uindx):
+    """
+    Returns bin x and y coordinates of the stellar and gas velocity bins
+    """
+
+    # Use sv_uindx for bin ids as stellar and gas bins are the same
+    bin_x = bin_ra.ravel()[sv_uindx]
+    bin_y = bin_dec.ravel()[sv_uindx]
+
+    bin_coords = np.vstack([bin_x, bin_y]).T
+
+    return bin_coords
