@@ -73,6 +73,26 @@ def calculate_radial_dvsg(bin_coords, residual, sort_ascending : bool, **extras)
     return bin_dists, residual
 
 def calculate_dvsg_error_analytic(sv_ivar, gv_ivar, sv_excl, gv_excl, norm_method, **extras):
+    """Calculates the analytic uncertainty on the DVSG value of a galaxy
+
+    Parameters
+    ----------
+    sv_ivar : array_like
+        Inverse variance of stellar velocity map (default from MaNGA pipeline)
+    gv_ivar : array_like
+        Inverse variance of stellar velocity map
+    sv_excl : array_like
+        Sigma-clipped stellar velocity map
+    gv_excl : array_like
+        Sigma-clipped gas velocity map
+    norm_method : str
+        Normalisation method using in the DVSG calculation. Must be ``minmax`` for propogate error
+
+    Returns
+    -------
+    dvsg_err : float (None if norm_method not ``minmax``)
+        Uncertainty on DVSG from error propagation
+    """
 
     if norm_method != "minmax":
         return None
@@ -89,8 +109,6 @@ def calculate_dvsg_error_analytic(sv_ivar, gv_ivar, sv_excl, gv_excl, norm_metho
     gv_err = np.sqrt(1.0 / gv_ivar[ok])
 
     n = np.count_nonzero(ok)
-    if n == 0:
-        return np.nan
     
     term = ((2.0 / sv_range) * sv_err) ** 2 + ((2.0 / gv_range) * gv_err) ** 2
     dvsg_err = (1.0 / n) * np.sqrt(np.sum(term))
