@@ -6,10 +6,23 @@ from .helpers import load_map, return_bin_indices, return_bin_coords
 from .preprocessing import mask_map, apply_sigma_clip, normalise_map
 
 def calculate_dvsg(sv_norm, gv_norm, return_stderr=False, return_residual=False, **extras):
-    """
-    Calculates the DVSG value and standard error using the normalised stellar and gas velocity maps.
+    """Base function to calculate the DVSG value of a galaxy
 
-    Optionally returns residual map used in calculation.
+    Parameters
+    ----------
+    sv_norm : array_like
+        Normalised stellar velocity map
+    gv_norm : array_like
+        Normalised gas velocity map
+    return_stderr : bool, optional
+        Return the standard error on the DVSG value, by default False
+    return_residual : bool, optional
+        Return the residual map from the DVSG calculation, by default False
+
+    Returns
+    -------
+    dvsg (dvsg_err, residual)
+        DVSG value of the galaxy (optionally, with the error on the DVSG value and the residual)
     """
 
     if not np.shape(sv_norm) == np.shape(gv_norm):
