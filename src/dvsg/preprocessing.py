@@ -5,11 +5,10 @@ from .helpers import return_bin_indices
 # ------------------------
 # Sigma-clipping functions
 # ------------------------
-def exclude_above_five_sigma(velocity_map: np.ndarray):
-    '''Excludes any values in a velocity map greater than 5 standard deviations
-    from the mean velocity of the map.
-    
-    NaN values are ignored when computing the mean and standard deviation.
+
+def exclude_above_n_sigma(velocity_map: np.ndarray, n: int):
+    """Excludes any values in a velocity map greater than n standard deviations
+    from the mean velocity of the map (excluding NaNs).
 
     The standard deviation used is the sample standard deviation (ddof=1).
 
@@ -21,31 +20,32 @@ def exclude_above_five_sigma(velocity_map: np.ndarray):
     Returns
     -------
     excluded_velocity_map : np.ndarray
-        The original velocity map, but with all velocity values greater 
-        than 5 standard deviations from the mean set to NaN.
-    '''
+        The n-sigma clipped velocity map
+    """
 
-    velocity_above_five_sigma = np.nanmean(velocity_map) + 5 * np.nanstd(velocity_map, ddof=1)
-    velocity_below_five_sigma = np.nanmean(velocity_map) - 5 * np.nanstd(velocity_map, ddof=1)
+    velocity_above_n_sigma = np.nanmean(velocity_map) + n * np.nanstd(velocity_map, ddof=1)
+    velocity_below_n_sigma = np.nanmean(velocity_map) - n * np.nanstd(velocity_map, ddof=1)
     
     excluded_velocity_map = velocity_map.copy()
 
-    excluded_velocity_map[velocity_map > velocity_above_five_sigma] = np.nan
-    excluded_velocity_map[velocity_map < velocity_below_five_sigma] = np.nan
+    excluded_velocity_map[velocity_map > velocity_above_n_sigma] = np.nan
+    excluded_velocity_map[velocity_map < velocity_below_n_sigma] = np.nan
 
     return excluded_velocity_map
+
 
 # -----------------------
 # Normalisation functions
 # -----------------------
 def minmax_normalise_velocity_map(velocity_map: np.ndarray):
-    '''
+    """
     Normalises the given velocity map to the range [-1, 1] using the formula:
 
         x' = 2 * ((x - min(x)) / (max(x) - min(x))) - 1 
 
     NaN values are ignored when computing the minimum and maximum.
-    '''
+    """
+
     velocity_map = np.asarray(velocity_map, dtype=float)  # ensure float copy
 
     min_val, max_val = np.nanmin(velocity_map), np.nanmax(velocity_map)
@@ -56,6 +56,7 @@ def minmax_normalise_velocity_map(velocity_map: np.ndarray):
     normalised_velocity_map = 2 * (velocity_map - min_val) / (max_val - min_val) - 1
 
     return normalised_velocity_map
+
 
 def zscore1_normalise_velocity_map(velocity_map: np.ndarray):
     '''
@@ -82,6 +83,7 @@ def zscore1_normalise_velocity_map(velocity_map: np.ndarray):
 
     return normalised_map
 
+
 def zscore5_normalise_velocity_map(velocity_map: np.ndarray):
     '''
     Apply Gaussian/Z-score normalisation to a velocity map
@@ -107,6 +109,7 @@ def zscore5_normalise_velocity_map(velocity_map: np.ndarray):
 
     return normalised_map
 
+
 def robust_scale_velocity_map(velocity_map: np.ndarray):
 
     velocity_25, velocity_50, velocity_75 = np.nanpercentile(velocity_map, q=[25, 50, 75])
@@ -114,6 +117,7 @@ def robust_scale_velocity_map(velocity_map: np.ndarray):
     robust_scaled_map = (velocity_map - velocity_50) / (velocity_75 - velocity_25)
 
     return robust_scaled_map
+
 
 def mad5_normalise_velocity_map(velocity_map: np.ndarray):
     """
@@ -152,7 +156,7 @@ def mad5_normalise_velocity_map(velocity_map: np.ndarray):
 # -----------------------
 # Preprocessing functions
 # -----------------------
-def mask_map(sv_map, gv_map, sv_mask, gv_mask, bin_ids, **extras):
+def mask_velocity_maps(sv_map, gv_map, sv_mask, gv_mask, bin_ids, **extras):
     """
     Extracts stellar and gas velocity values in map from each bin.
     
@@ -163,18 +167,56 @@ def mask_map(sv_map, gv_map, sv_mask, gv_mask, bin_ids, **extras):
     sv_ubins, sv_uindx, gv_ubins, gv_uindx = return_bin_indices(bin_ids)
 
     # Apply mask and save a masked array
-    sv_flat = np.ma.MaskedArray(sv_map.ravel()[sv_uindx], mask=sv_mask.ravel()[sv_uindx] > 0)  # Masked stellar velocity positions
-    gv_flat = np.ma.MaskedArray(gv_map.ravel()[gv_uindx], mask=gv_mask.ravel()[gv_uindx] > 0)  # Masked gas velocity positions
+    sv_flat = np.ma.MaskedArray(sv_map.ravel()[sv_uindx], mask=sv_mask.ravel()[sv_uindx] > 0)
+    gv_flat = np.ma.MaskedArray(gv_map.ravel()[gv_uindx], mask=gv_mask.ravel()[gv_uindx] > 0)
 
     return sv_flat, gv_flat
 
-def apply_sigma_clip(sv_flat, gv_flat):
+
+def mask_binned_map(map, mask, bin_ids, **extras):
+
+    # Get the unique indices of the stellar and gas velocity bins
+    sv_ubins, sv_uindx, gv_ubins, gv_uindx = return_bin_indices(bin_ids)
+
+    flat = np.ma.MaskedArray(map.ravel()[sv_uindx], mask=mask.ravel()[sv_uindx] > 0)
+
+    return flat
+
+
+def apply_bin_snr_threshold(sv_flat, gv_flat, bin_snr_flat, snr_threshold, **extras):
+
+    reject = bin_snr_flat < snr_threshold
+
+    sv_flat[reject] = np.nan
+    gv_flat[reject] = np.nan
+
+    return sv_flat, gv_flat
+
+
+def apply_velocity_snr_threshold(sv_flat, gv_flat, sv_ivar_flat, gv_ivar_flat, snr_threshold: float, **extras):
+
+    # Calculate S/N ratio of velocity values
+    sv_snr = np.abs(sv_flat) / (1 / np.sqrt(sv_ivar_flat))
+    gv_snr = np.abs(gv_flat) / (1 / np.sqrt(gv_ivar_flat))
+
+    # Apply mask
+    sv_reject = sv_snr < snr_threshold
+    gv_reject = gv_snr < snr_threshold
+
+    sv_flat[sv_reject] = np.nan
+    gv_flat[gv_reject] = np.nan
+
+    return sv_flat, gv_flat
+
+
+def apply_sigma_clip(sv_flat, gv_flat, n: int = 3):
 
     # Apply sigma clip
-    sv_excl = exclude_above_five_sigma(sv_flat)
-    gv_excl = exclude_above_five_sigma(gv_flat)
+    sv_excl = exclude_above_n_sigma(sv_flat, n=n)
+    gv_excl = exclude_above_n_sigma(gv_flat, n=n)
 
     return sv_excl, gv_excl
+
 
 def normalise_map(sv_excl, gv_excl, norm_method, **extras):
     """
