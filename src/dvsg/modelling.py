@@ -1,44 +1,19 @@
 from typing import Optional, Tuple
 
 import numpy as np
-from scipy import ndimage
+from scipy.ndimage import rotate
 
 from .preprocessing import minmax_normalise_velocity_map
 
-class MapModel:
-    """
-    Minimal MapModel with physical parameters and asymmetric-drift hook.
-    Returns 2D numpy arrays (velocity maps) and optional metadata dict.
-    """
-    
-    def __init__(self, size: int, pixel_scale: float = 1.0,
-                center: Optional[Tuple[int, int]] = None,
-                seed: Optional[int] = None):
-        self.size = size
-        self.pixel_scale = pixel_scale
-        self.center = center if center is not None else (size//2, size//2)
-        self.rng = np.random.default_rng(seed)
-
-    def _grid_r_theta(self):
-        ny = nx = self.size
-        y, x = np.indices((ny, nx))
-        x0, y0 = self.center
-        x_rel = (x - x0) * self.pixel_scale
-        y_rel = (y - y0) * self.pixel_scale
-        R = np.hypot(x_rel, y_rel)
-        theta = np.arctan2(y_rel, x_rel)  # radians
-        return x_rel, y_rel, R, theta
-
-    def cookie_cutter(self, input_array: np.ndarray, set_edges_to_nan: bool):
+def cookie_cutter(array: np.ndarray, size: int, set_edges_to_nan: bool):
         """
         Cut the corners of an NxN square to make an 'octagon-like' mask,
-        then apply it to input_array. Works for NaNs too (they are preserved).
-        The mask is created by four linear inequalities (diagonal cuts).
+        then apply it to input_array. Works for NaNs too. 
+        The mask is created by four diagonal cuts.
         """
 
-        size = self.size
-
-        if input_array.shape != (size, size):
+        size = array.shape[0]
+        if array.shape != (size, size):
             raise ValueError("input_array must be shape (size, size)")
 
         # Distance from diagonal to perform cut
@@ -55,7 +30,7 @@ class MapModel:
         edge_mask = c1 & c2 & c3 & c4  # True inside octagon, False in cut corners
 
         # Apply mask to input array
-        result = input_array.copy()
+        result = array.copy()
         if set_edges_to_nan:
             result[~edge_mask] = np.nan
         else:
@@ -63,55 +38,192 @@ class MapModel:
 
         return result
 
-    def rotation_map(self, v_max=200., r_turn=5., incl_deg=60., pa_deg=0., v_sys=0., normalise=True, return_meta=False):
+def circular_mask(array: np.ndarray,
+                  centre: Tuple[float, float],
+                  pixel_scale: float = 1.0,
+                  radius: Optional[float] = None,
+                  radius_units: str = "pixels",
+                  set_edges_to_nan: bool = True,
+                  return_mask: bool = False,
+                  margin: int = 0):
+    """Create or apply a circular mask to a 2D array."""
+
+    if array.ndim != 2:
+        raise ValueError("array must be 2D")
+
+    ny, nx = array.shape
+    x0, y0 = centre
+
+    # Determine radius in pixels
+    if radius is None:
+        max_r = min(x0, y0, nx - 1 - x0, ny - 1 - y0) - margin
+        r_pix = float(max_r)
+    else:
+        if radius_units == "pixels":
+            r_pix = float(radius)
+        elif radius_units == "arcsec":
+            r_pix = float(radius) / pixel_scale
+        else:
+            raise ValueError("radius_units must be 'pixels' or 'arcsec'")
+
+    if r_pix < 0:
+        raise ValueError("Computed radius is negative")
+
+    # Build distance grid
+    j, i = np.indices((ny, nx))
+    dx = i - x0
+    dy = j - y0
+    mask = (dx * dx + dy * dy) <= (r_pix * r_pix)
+
+    if return_mask:
+        return mask
+
+    # Apply mask
+    out = array.copy()
+    if set_edges_to_nan:
+        out[~mask] = np.nan
+    else:
+        out[~mask] = 0.0
+
+    return out
+
+class MapModel:
+    def __init__(self, 
+                 map_type: str, 
+                 size: Optional[int] = 40, 
+                 pixel_scale: Optional[float] = 1.0, 
+                 center: Optional[Tuple[int, int]] = None, 
+                 seed: Optional[int] = None, 
+                 input_map: Optional[np.ndarray] = None,
+                 input_mask: Optional[np.ndarray] = None,
+                 map_kwargs: Optional[dict] = None,
+                 ):
+        
+        self.size = size
+        self.map_type = map_type
+        self.pixel_scale = pixel_scale
+        self.center = center if center is not None else (size // 2, size // 2)
+        self.rng = np.random.default_rng(seed)
+        self.map_kwargs = map_kwargs or {}
+        self.input_map = input_map
+        self.input_mask = input_mask
+
+        self._initialise_map()
+
+    def _initialise_map(self):
+        map_builders = {
+            "rotation_dominated": self.rotation_dominated_map,
+            "dispersion_dominated": self.dispersion_dominated_map,
+            "input": self._load_input
+        }
+
+        try:
+            builder = map_builders[self.map_type]
+        except KeyError:
+            raise ValueError(f"Invalid map type: {self.map_type}")
+
+        self.map = builder(**self.map_kwargs)
+
+    def _load_input(self):
+        map = self.input_map
+        mask = self.input_mask
+
+        self.map = map
+        self.mask = mask
+        self.size = map.shape[0]
+
+        return self.map
+
+    def _grid_r_theta(self):
+        ny = nx = self.size
+        y, x = np.indices((ny, nx))
+        x0, y0 = self.center
+        x_rel = (x - x0) * self.pixel_scale
+        y_rel = (y - y0) * self.pixel_scale
+        R = np.hypot(x_rel, y_rel)
+        theta = np.arctan2(y_rel, x_rel)  # radians
+        return x_rel, y_rel, R, theta
+
+    def rotate_map(self, angle, set_edges_to_nan: bool = True):
+
+        map = self.map
+
+        # Set edge NaNs to zero for rotation
+        nan_mask = np.isnan(map)
+        map[nan_mask] = 0.0
+        
+        # Rotate map with original shape
+        map_off = rotate(input=map, angle=angle, reshape=False)
+        
+        # Apply masks
+        # -- use cookie cutter
+        if self.map_type in ["rotation_dominated", "dispersion_dominated"]:
+            out = cookie_cutter(map_off, self.size, set_edges_to_nan=set_edges_to_nan)
+        # -- use input masks
+        elif self.map_type == "input":
+            # -- rotate mask
+            mask_to_rotate = self.mask.astype(int)
+            mask_off = rotate(input=mask_to_rotate, angle=angle, order=0, reshape=False)  # no interpolation
+            # -- keep unmasked values in both original and rotated mask
+            keep = (~self.mask & ~mask_off).astype(bool)
+            # -- apply mask
+            out = map_off.copy()
+            out[~keep] = np.nan
+        
+        return out
+
+    def rotation_dominated_map(self, v_max=200., r_turn=5., incl=60., pa=0., v_sys=0., normalise=True, return_meta=False):
         """
         Build a simple axisymmetric rotation map (projected LOS velocity).
         v_rot(R) = v_max * (1 - exp(-R / r_turn))
         """
-        incl = np.deg2rad(incl_deg)
+
+        # Convert to radians
+        pa = np.deg2rad(pa)
+        cosi = np.cos(np.deg2rad(incl))
+        sini = np.sin(np.deg2rad(incl))
+
         x_rel, y_rel, R, theta = self._grid_r_theta()
 
-        # intrinsic rotation curve
-        v_rot = v_max * (1.0 - np.exp(-R / r_turn))  # simple form
-
-        # Project into LOS: v_los = v_rot * sin(i) * cos(phi)
-        # phi measured from major axis; if PA != 0 you'd rotate coords by PA
-        pa = np.deg2rad(pa_deg)
-        # rotate coords by pa
-        x_r = x_rel * np.cos(pa) + y_rel * np.sin(pa)
+        # Rotate by PA
+        x_r =  x_rel * np.cos(pa) + y_rel * np.sin(pa)
         y_r = -x_rel * np.sin(pa) + y_rel * np.cos(pa)
-        R_r = np.hypot(x_r, y_r)
-        phi = np.arctan2(y_r, x_r)
 
-        # recompute v_rot with rotated radius if desired:
-        v_rot = v_max * (1.0 - np.exp(-R_r / r_turn))
+        # Deproject minor axis to get intrinsic radius in disc plane
+        x_deproj = x_r
+        y_deproj = y_r / cosi
+        R = np.hypot(x_deproj, y_deproj)
+        phi = np.arctan2(y_deproj, x_deproj)
 
-        # Convert to v_los
-        v_los = v_rot * np.cos(phi) + v_sys
+        # Create toy intrinsic rotation curve
+        v_rot = v_max * (1.0 - np.exp(-R / r_turn))
+
+        # Project into LOS
+        v_los = v_sys + v_rot * sini * np.cos(phi)
 
         # Normalise map after applying cookie cutter
-        out = self.cookie_cutter(v_los, set_edges_to_nan=True)
+        v_los_cut = cookie_cutter(v_los, self.size, set_edges_to_nan=True)
         if normalise:
-            out = minmax_normalise_velocity_map(out)
+            v_los_cut = minmax_normalise_velocity_map(v_los_cut)
 
-        # return map + metadata
-        meta = dict(v_max=v_max, r_turn=r_turn, incl_deg=incl_deg, pa_deg=pa_deg, v_sys=v_sys)
+        # Return map and, optionally, metadata
+        meta = dict(v_max=v_max, r_turn=r_turn, incl_deg=incl, pa_deg=pa, v_sys=v_sys)
         if return_meta:
-            return out, meta
+            return v_los_cut, meta
         else:
-            return out
+            return v_los_cut
 
-    def dispersion_map(self, sigma0=80.0, normalise=True):
+    def dispersion_dominated_map(self, sigma0=80.0, normalise=True):
         """Return a toy dispersion-dominated gas velocity map."""
         # Zero mean, Gaussian scatter everywhere
         v_map = self.rng.normal(loc=0.0, scale=sigma0, size=(self.size, self.size))
 
         # Normalise map after applying cookie cutter
-        out = self.cookie_cutter(v_map, set_edges_to_nan=True)
+        v_map_cut = cookie_cutter(v_map, self.size, set_edges_to_nan=True)
         if normalise:
-            out = minmax_normalise_velocity_map(out)
+            v_map_cut = minmax_normalise_velocity_map(v_map_cut)
 
-        return out
+        return v_map_cut
 
     def apply_asymmetric_drift(self, v_circ_map, sigma_R_map, surface_density_map,
                                kappa_factor=1.0):
@@ -171,16 +283,3 @@ class MapModel:
         # we must de-project and re-project; for this simple demo assume v_circ_map is intrinsic v_phi already.
         # Return v_phi (intrinsic streaming). Caller should project it via same geometry as rotation_map.
         return v_phi
-
-    def rotate(self, array, angle):
-
-        # Set edge NaNs to zero for rotation
-        nan_mask = np.isnan(array)
-        array[nan_mask] = 0.0
-        
-        # Rotate map keeping original shape
-        rotated = ndimage.rotate(input=array, angle=angle, reshape=False)
-        
-        # Apply cookie cutter and mask set edges back to NaN
-        out = self.cookie_cutter(rotated, set_edges_to_nan=True)
-        return out
