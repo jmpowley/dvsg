@@ -188,8 +188,8 @@ def calculate_dvsg_diagnostics_from_plateifu(plateifu, **dvsg_kwargs):
     bin_snr_flat = mask_binned_map(bin_snr, sv_mask, bin_ids)  # use stellar velocity mask
 
     # Apply SNR threshold
-    # sv_flat, gv_flat = apply_snr_threshold(sv_flat, gv_flat, sv_ivar_flat, gv_ivar_flat, **dvsg_kwargs)
-    sv_flat, gv_flat = apply_bin_snr_threshold(sv_flat, gv_flat, bin_snr_flat, **dvsg_kwargs)
+    if dvsg_kwargs.get("snr_threshold") is not None:
+        sv_flat, gv_flat = apply_bin_snr_threshold(sv_flat, gv_flat, bin_snr_flat, **dvsg_kwargs)
 
     # Sigma clip and normalise maps
     sv_clip, gv_clip = apply_sigma_clip(sv_flat, gv_flat)
