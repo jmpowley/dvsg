@@ -2,27 +2,64 @@ import numpy as np
 
 from astropy.table import Table
 
-from .helpers import load_map, return_bin_indices, return_bin_coords
-from .preprocessing import mask_map, apply_sigma_clip, normalise_map
+from .helpers import load_map, return_bin_indices, return_bin_coord_centres
+from .preprocessing import mask_velocity_maps, mask_binned_map, apply_bin_snr_threshold, apply_velocity_snr_threshold, apply_sigma_clip, normalise_map
 
-def calculate_dvsg(sv_norm, gv_norm, return_stderr=False, return_residual=False, **extras):
-    """Base function to calculate the DVSG value of a galaxy
-
+# ---------------------
+# Calculation functions
+# ---------------------
+def calculate_dvsg(sv_norm, gv_norm, **extras):
+    """Base function to calculate the DVSG value of a galaxy.
+    
     Parameters
     ----------
-    sv_norm : array_like
+    sv_norm : np.ndarray
         Normalised stellar velocity map
-    gv_norm : array_like
+    gv_norm : np.ndarray
         Normalised gas velocity map
-    return_stderr : bool, optional
-        Return the standard error on the DVSG value, by default False
-    return_residual : bool, optional
-        Return the residual map from the DVSG calculation, by default False
 
     Returns
     -------
-    dvsg (dvsg_err, residual)
-        DVSG value of the galaxy (optionally, with the error on the DVSG value and the residual)
+    dvsg : float
+        The DVSG value of a galaxy
+
+    Raises
+    ------
+    Exception
+        If sv_norm and gv_norm are different shapes
+    
+    """
+
+    if not np.shape(sv_norm) == np.shape(gv_norm):
+        raise Exception('sv_norm and gv_norm must have the same shape. Currently have shapes ' + str(np.shape(sv_norm)) + ' and ' + str(np.shape(gv_norm)))
+    
+    residual = np.abs(sv_norm - gv_norm)
+    dvsg = np.nanmean(residual)
+
+    return dvsg
+
+
+def calculate_dvsg_diagnostics(sv_norm: np.ndarray, gv_norm: np.ndarray, **extras):
+    """Calculates the DVSG value of a galaxy along with extra diagnostics.
+
+    Includes standard error on DVSG and residual map.
+
+    Parameters
+    ----------
+    sv_norm : np.ndarray
+        Normalised stellar velocity map
+    gv_norm : np.ndarray
+        Normalised gas velocity map
+
+    Returns
+    -------
+    dvsg_output : dict
+        Dictionary containing diagnostics for DVSG
+
+    Raises
+    ------
+    Exception
+        If sv_norm and gv_norm are different shapes
     """
 
     if not np.shape(sv_norm) == np.shape(gv_norm):
@@ -32,24 +69,20 @@ def calculate_dvsg(sv_norm, gv_norm, return_stderr=False, return_residual=False,
     dvsg = np.nanmean(residual)
     dvsg_stderr = np.nanstd(residual) / np.sqrt(np.count_nonzero(residual))
 
-    # Optionally, return residual and standard error
-    if return_residual:
-        if return_stderr:
-            return dvsg, dvsg_stderr, residual
-        else:
-            return dvsg, residual
-    else:
-        if return_stderr:
-            return dvsg, dvsg_stderr
-        else:
-            return dvsg
+    # Compile output
+    dvsg_output = {}
+    dvsg_output["dvsg"] = dvsg
+    dvsg_output["dvsg_stderr"] = dvsg_stderr
+    dvsg_output["residual"] = residual
 
-def calculate_radial_dvsg(bin_coords, residual, sort_ascending : bool, **extras):
+    return dvsg_output
+
+def calculate_radial_dvsg(bin_centres, residual, sort_ascending: bool, **extras):
     """Calculate radial distance of bin co-ordinates and return with residuals
 
     Parameters
     ----------
-    bin_coords : array_like
+    bin_centres : array_like
         Co-ordinates of bins.
     residual : array_like
         Residuals of each bin
@@ -65,25 +98,25 @@ def calculate_radial_dvsg(bin_coords, residual, sort_ascending : bool, **extras)
     """
     
     # Calculate distance from each bin to centre
-    bin_dists = np.sqrt(np.sum(bin_coords**2, axis=1))  # (x^2+y^2) summed along co-ordinate axis then sqrted
+    bin_dists = np.sqrt(np.sum(bin_centres**2, axis=1))  # (x^2+y^2) summed along co-ordinate axis then sqrted
 
     if sort_ascending:
         bin_dists, residual = zip(*sorted(zip(bin_dists, residual)))
 
     return bin_dists, residual
 
-def calculate_dvsg_error_analytic(sv_ivar, gv_ivar, sv_excl, gv_excl, norm_method, **extras):
+def calculate_dvsg_error_analytic(sv_ivar, gv_ivar, sv_clip, gv_clip, norm_method, **extras):
     """Calculates the analytic uncertainty on the DVSG value of a galaxy
 
     Parameters
     ----------
     sv_ivar : array_like
-        Inverse variance of stellar velocity map (default from MaNGA pipeline)
+        Inverse variance of stellar velocity map
     gv_ivar : array_like
         Inverse variance of stellar velocity map
-    sv_excl : array_like
+    sv_clip : array_like
         Sigma-clipped stellar velocity map
-    gv_excl : array_like
+    gv_clip : array_like
         Sigma-clipped gas velocity map
     norm_method : str
         Normalisation method using in the DVSG calculation. Must be ``minmax`` for propogate error
@@ -97,12 +130,12 @@ def calculate_dvsg_error_analytic(sv_ivar, gv_ivar, sv_excl, gv_excl, norm_metho
     if norm_method != "minmax":
         return None
 
-    sv_range = np.nanmax(sv_excl) - np.nanmin(sv_excl)
-    gv_range = np.nanmax(gv_excl) - np.nanmin(gv_excl)
+    sv_range = np.nanmax(sv_clip) - np.nanmin(sv_clip)
+    gv_range = np.nanmax(gv_clip) - np.nanmin(gv_clip)
 
     # Convert ivar to sigma, but only where ivar is positive and finite
-    sv_ok = np.isfinite(sv_excl) & np.isfinite(sv_ivar) & (sv_ivar > 0)
-    gv_ok = np.isfinite(gv_excl) & np.isfinite(gv_ivar) & (gv_ivar > 0)
+    sv_ok = np.isfinite(sv_clip) & np.isfinite(sv_ivar) & (sv_ivar > 0)
+    gv_ok = np.isfinite(gv_clip) & np.isfinite(gv_ivar) & (gv_ivar > 0)
     ok = sv_ok & gv_ok
     
     sv_err = np.sqrt(1.0 / sv_ivar[ok])
@@ -111,55 +144,99 @@ def calculate_dvsg_error_analytic(sv_ivar, gv_ivar, sv_excl, gv_excl, norm_metho
     n = np.count_nonzero(ok)
     
     term = ((2.0 / sv_range) * sv_err) ** 2 + ((2.0 / gv_range) * gv_err) ** 2
-    dvsg_err = (1.0 / n) * np.sqrt(np.sum(term))
+    dvsg_err = (1.0 / n) * np.sqrt(np.nansum(term))
 
     return dvsg_err
+
+# TODO: Add radial DVSG analytic error
 
 # ----------------------
 # Routines from plateifu
 # ----------------------
+
 def calculate_dvsg_from_plateifu(plateifu, **dvsg_kwargs):
 
     # Load map
-    sv_map, gv_map, sv_mask, gv_mask, sv_ivar, gv_ivar, bin_ids, bin_ra, bin_dec, x_as, y_as = load_map(plateifu, **dvsg_kwargs)
+    sv_map, gv_map, sv_mask, gv_mask, sv_ivar, gv_ivar, bin_ids, bin_snr, bin_ra, bin_dec, x_as, y_as = load_map(plateifu, **dvsg_kwargs)
 
-    # Extract masked values from bins
-    sv_flat, gv_flat = mask_map(sv_map, gv_map, sv_mask, gv_mask, bin_ids)
-    sv_ivar_flat, gv_ivar_flat = mask_map(sv_ivar, gv_ivar, sv_mask, gv_mask, bin_ids)
+    # Extract masked values and flatten
+    sv_flat, gv_flat = mask_velocity_maps(sv_map, gv_map, sv_mask, gv_mask, bin_ids)
+    sv_ivar_flat, gv_ivar_flat = mask_velocity_maps(sv_ivar, gv_ivar, sv_mask, gv_mask, bin_ids)
+    bin_snr_flat = mask_binned_map(bin_snr, sv_mask, bin_ids)  # use stellar velocity mask
+
+    # Apply SNR threshold
+    # sv_flat, gv_flat = apply_snr_threshold(sv_flat, gv_flat, sv_ivar_flat, gv_ivar_flat, **dvsg_kwargs)
+    sv_flat, gv_flat = apply_bin_snr_threshold(sv_flat, gv_flat, bin_snr_flat, **dvsg_kwargs)
 
     # Sigma clip and normalise maps
-    sv_excl, gv_excl = apply_sigma_clip(sv_flat, gv_flat)
-    sv_norm, gv_norm = normalise_map(sv_excl, gv_excl, **dvsg_kwargs)
+    sv_clip, gv_clip = apply_sigma_clip(sv_flat, gv_flat)
+    sv_norm, gv_norm = normalise_map(sv_clip, gv_clip, **dvsg_kwargs)
 
     # Calculate DVSG
-    dvsg, dvsg_stderr = calculate_dvsg(sv_norm, gv_norm, **dvsg_kwargs)
-    
-    # Calculate analytic error
-    dvsg_properr = calculate_dvsg_error_analytic(sv_ivar_flat, gv_ivar_flat, sv_excl, gv_excl, **dvsg_kwargs)
+    dvsg = calculate_dvsg(sv_norm, gv_norm, **dvsg_kwargs)
 
-    # Check error type
-    err_type = dvsg_kwargs.get("error_type", "stderr")
-    if err_type == "stderr":
-        dvsg_err = dvsg_stderr
-    elif err_type == "analytic":
-        dvsg_err = dvsg_properr
+    return dvsg
 
-    return dvsg, dvsg_err
+def calculate_dvsg_diagnostics_from_plateifu(plateifu, **dvsg_kwargs):
+
+    # Load map
+    sv_map, gv_map, sv_mask, gv_mask, sv_ivar, gv_ivar, bin_ids, bin_snr, bin_ra, bin_dec, x_as, y_as = load_map(plateifu, **dvsg_kwargs)
+
+    # Extract masked values and flatten
+    sv_flat, gv_flat = mask_velocity_maps(sv_map, gv_map, sv_mask, gv_mask, bin_ids)
+    sv_ivar_flat, gv_ivar_flat = mask_velocity_maps(sv_ivar, gv_ivar, sv_mask, gv_mask, bin_ids)
+    bin_snr_flat = mask_binned_map(bin_snr, sv_mask, bin_ids)  # use stellar velocity mask
+
+    # Apply SNR threshold
+    # sv_flat, gv_flat = apply_snr_threshold(sv_flat, gv_flat, sv_ivar_flat, gv_ivar_flat, **dvsg_kwargs)
+    sv_flat, gv_flat = apply_bin_snr_threshold(sv_flat, gv_flat, bin_snr_flat, **dvsg_kwargs)
+
+    # Sigma clip and normalise maps
+    sv_clip, gv_clip = apply_sigma_clip(sv_flat, gv_flat)
+    sv_norm, gv_norm = normalise_map(sv_clip, gv_clip, **dvsg_kwargs)
+
+    # Calculate DVSG
+    results = calculate_dvsg_diagnostics(sv_norm, gv_norm, **dvsg_kwargs)
+
+    # Prepare output
+    output = {
+        "dvsg": results["dvsg"],
+    }
+
+    # Error handling
+    error_type = dvsg_kwargs.get("error_type")
+    if error_type is not None:
+        if error_type == "stderr":
+            dvsg_err = results["dvsg_stderr"]
+        elif error_type == "analytic":
+            dvsg_err = calculate_dvsg_error_analytic(sv_ivar_flat, gv_ivar_flat, sv_clip, gv_clip, **dvsg_kwargs)
+        else:
+            raise ValueError(f"Unknown error_type: {error_type}")
+        output["dvsg_err"] = dvsg_err
+
+    # Residual handling
+    if dvsg_kwargs.get("return_residual", False):
+        output["residual"] = results["residual"]
+
+    return output
 
 def calculate_radial_dvsg_from_plateifu(plateifu : str, dvsg_kwargs : dict):
 
+    # TODO: Refactor
+
     # Execute pipeline to calculate residuals
     sv_map, gv_map, sv_mask, gv_mask, sv_ivar, gv_ivar, bin_ids, bin_ra, bin_dec, x_as, y_as = load_map(plateifu, **dvsg_kwargs)
-    sv_flat, gv_flat = mask_map(sv_map, gv_map, sv_mask, gv_mask, bin_ids, **dvsg_kwargs)
+    sv_flat, gv_flat = mask_velocity_maps(sv_map, gv_map, sv_mask, gv_mask, bin_ids, **dvsg_kwargs)
     sv_norm, gv_norm = normalise_map(sv_flat, gv_flat, **dvsg_kwargs)
-    dvsg, dvsg_stderr, residual = calculate_dvsg(sv_norm, gv_norm, **dvsg_kwargs)
+    output = calculate_dvsg(sv_norm, gv_norm)
+    residual = output["residual"]
     
     # Load bin information
     sv_ubins, sv_uindx, gv_ubins, gv_uindx = return_bin_indices(bin_ids)
-    bin_coords = return_bin_coords(bin_ra, bin_dec, sv_uindx, gv_uindx)
+    bin_centres = return_bin_coord_centres(bin_ra, bin_dec, sv_uindx, gv_uindx)
 
     # Calculate radial dvsg
-    bin_dists, residual = calculate_radial_dvsg(bin_coords, residual, **dvsg_kwargs)
+    bin_dists, residual = calculate_radial_dvsg(bin_centres, residual, **dvsg_kwargs)
 
     return bin_dists, residual
 
@@ -170,22 +247,16 @@ def return_dvsg_table_from_plateifus(plateifu_list, **dvsg_kwargs):
     Optionally adds the maps and binned data from each plateifu to the table
     """
 
-    # Extract DVSG kwargs
-    mode = dvsg_kwargs.get('mode')
-    bintype = dvsg_kwargs.get('bintype')
-
     # Create lists to store DVSG data
     dvsg_list = []
     dvsg_err_list = []
-    sv_map_list = []
-    gv_map_list = []
-    sv_norm_list = []
-    gv_norm_list = []
 
     # Loop over each plateifu
     for plateifu in plateifu_list:
 
-        dvsg, dvsg_err = calculate_dvsg_from_plateifu(plateifu, **dvsg_kwargs)
+        output = calculate_dvsg_diagnostics_from_plateifu(plateifu, **dvsg_kwargs)
+        dvsg = output["dvsg"]
+        dvsg_err = output["dvsg_err"]
 
         # Add DVSG data to lists
         dvsg_list.append(dvsg)
@@ -198,9 +269,5 @@ def return_dvsg_table_from_plateifus(plateifu_list, **dvsg_kwargs):
     tb['plateifu'] = plateifu_list
     tb['dvsg'] = dvsg_list
     tb['dvsg_err'] = dvsg_err_list
-    # tb['sv_map'] = sv_map_list
-    # tb['gv_map'] = gv_map_list
-    # tb['sv_norm'] = sv_norm_list
-    # tb['gv_norm'] = gv_norm_list
 
     return tb
