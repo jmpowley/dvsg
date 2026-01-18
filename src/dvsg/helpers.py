@@ -31,46 +31,49 @@ def download_map_from_plateifu(plateifu, bintype):
     except Exception as e:
         print(f"Error: unable to download map {plateifu}: {e}")
 
-def load_map(plateifu : str, mode : str, bintype: str, **extras):
-    """ 
-    Loads map products for a MaNGA galaxy from an input plateifu
+
+def load_local_hdul(plateifu : str, bintype: str):
+
+    plate, ifu = plateifu.split("-")
+    local_path = f"/Users/Jonah/sas/dr17/manga/spectro/analysis/v3_1_1/3.1.0/VOR10-MILESHC-MASTARSSP/{plate}/{ifu}/manga-{plate}-{ifu}-MAPS-{bintype}-MILESHC-MASTARSSP.fits.gz"
+    
+    # Check local path exists
+    if os.path.exists(local_path):
+        hdul = fits.open(local_path)
+    else:
+        raise ValueError(f"No local path {local_path}")
+    
+    return hdul
+
+
+def load_maps(plateifu : str, mode : str, bintype: str, **extras):
+    """Loads map products for a MaNGA galaxy from an input plateifu.
 
     Returns the velocity map, mask, inverse variance map, and bin information for the stellar and Halpha gas map.
     """
 
     # Access maps locally
     if mode == "local":
-        plate, ifu = plateifu.split("-")
-        local_path = f"/Users/Jonah/sas/dr17/manga/spectro/analysis/v3_1_1/3.1.0/VOR10-MILESHC-MASTARSSP/{plate}/{ifu}/manga-{plate}-{ifu}-MAPS-VOR10-MILESHC-MASTARSSP.fits.gz"
+        hdul = load_local_hdul(plateifu, bintype)
 
-        # Only run if local path exists
-        if os.path.exists(local_path):
-            try:
-                hdul = fits.open(local_path)
-
-                # Extract stellar and gas velocity products
-                # -- velocity maps
-                sv_map = hdul["STELLAR_VEL"].data
-                gv_map = hdul["EMLINE_GVEL"].data[23]
-                # -- masks
-                sv_mask = hdul["STELLAR_VEL_MASK"].data
-                gv_mask = hdul["EMLINE_GVEL_MASK"].data[23]
-                # -- inverse variance maps
-                sv_ivar = hdul["STELLAR_VEL_IVAR"].data
-                gv_ivar = hdul["EMLINE_GVEL_IVAR"].data[23]
-                # -- bin information
-                bin_ids = hdul["BINID"].data
-                bin_snr = hdul["BIN_SNR"].data
-                # -- spatial information
-                x_as, y_as = hdul["SPX_SKYCOO"].data  # x/y spaxel offsets in arcseconds
-                bin_ra, bin_dec = hdul["BIN_LWSKYCOO"].data  # bin offsets in RA and DEC
-            except Exception as e:
-                print(f"Error loading {plateifu} using local method: {e}")
-        else:
-            raise ValueError(f"Local path {local_path} could not be found")
-
+        # velocity maps
+        sv_map = hdul["STELLAR_VEL"].data
+        gv_map = hdul["EMLINE_GVEL"].data[23]
+        
+        # masks
+        sv_mask = hdul["STELLAR_VEL_MASK"].data
+        gv_mask = hdul["EMLINE_GVEL_MASK"].data[23]
+        
+        # inverse variance maps
+        sv_ivar = hdul["STELLAR_VEL_IVAR"].data
+        gv_ivar = hdul["EMLINE_GVEL_IVAR"].data[23]
+        
+        # bin information
+        bin_ids = hdul["BINID"].data
+        bin_snr = hdul["BIN_SNR"].data
+    
     # Access maps remotely
-    else:
+    elif mode == "remote":
         try:
             # Set Marvin release to DR17 and avoid API error
             config.setDR("DR17")
@@ -90,12 +93,40 @@ def load_map(plateifu : str, mode : str, bintype: str, **extras):
             sv_ivar = maps["stellar_vel_ivar"].data
             gv_ivar = maps["emline_gvel_ivar_ha_6564"].value
             # -- bin ids
-            # TODO: Add bin_id info for remote maps
+            # TODO: Add bin info for remote maps
+            bin_ids = None
+            bin_snr = None
 
         except Exception as e:
             print(f"Error loading {plateifu} using remote method: {e}")
 
-    return sv_map, gv_map, sv_mask, gv_mask, sv_ivar, gv_ivar, bin_ids, bin_snr, bin_ra, bin_dec, x_as, y_as
+    else:
+        raise ValueError(f"Invalid mode, got {mode}")
+
+    return sv_map, gv_map, sv_mask, gv_mask, sv_ivar, gv_ivar, bin_ids, bin_snr
+
+
+def load_map_coords(plateifu : str, mode : str, bintype: str, **extras):
+
+    # Access maps locally
+    if mode == "local":
+        hdul = load_local_hdul(plateifu, bintype)
+
+        # x/y spaxel offsets in arcseconds
+        x_as, y_as = hdul["SPX_SKYCOO"].data
+
+        # bin offsets in RA and DEC
+        bin_ra, bin_dec = hdul["BIN_LWSKYCOO"].data
+
+    # Access maps remotely
+    elif mode == "remote":
+        pass
+        # TODO: Add spatial info for remote maps
+
+    else:
+        raise ValueError(f"Invalid mode, got {mode}")
+    
+    return x_as, y_as, bin_ra, bin_dec
 
 # ----------------
 # Return functions

@@ -1,6 +1,6 @@
 import numpy as np
 
-from .helpers import return_bin_indices, load_map
+from .helpers import return_bin_indices, load_maps
 
 # ------------------------
 # Sigma-clipping functions
@@ -252,13 +252,14 @@ def normalise_map(sv_excl, gv_excl, norm_method, **extras):
     return sv_norm, gv_norm
 
 
-# ---------------------------
-# Full preprocessing function
-# ---------------------------
-def preprocess_map_from_plateifu(plateifu: str, **dvsg_kwargs):
+# -----------------------------------
+# Multi-stage preprocessing functions
+# -----------------------------------
+def preprocess_maps_from_plateifu(plateifu: str, **dvsg_kwargs):
 
     # Load map
-    sv_map, gv_map, sv_mask, gv_mask, sv_ivar, gv_ivar, bin_ids, bin_snr, bin_ra, bin_dec, x_as, y_as = load_map(plateifu, **dvsg_kwargs)
+    sv_map, gv_map, sv_mask, gv_mask, sv_ivar, gv_ivar, bin_ids, bin_snr = load_maps(plateifu, **dvsg_kwargs)
+    sv_ivar_flat, gv_ivar_flat = mask_velocity_maps(sv_ivar, gv_ivar, sv_mask, gv_mask, bin_ids)
 
     # Extract masked values and flatten
     sv_flat, gv_flat = mask_velocity_maps(sv_map, gv_map, sv_mask, gv_mask, bin_ids)

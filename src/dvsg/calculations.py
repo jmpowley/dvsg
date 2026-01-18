@@ -2,8 +2,8 @@ import numpy as np
 
 from astropy.table import Table
 
-from .helpers import load_map, return_bin_indices, return_bin_coord_centres
-from .preprocessing import mask_velocity_maps, mask_binned_map, apply_bin_snr_threshold, apply_velocity_snr_threshold, apply_sigma_clip, normalise_map
+from .helpers import load_maps, load_map_coords, return_bin_indices, return_bin_coord_centres
+from .preprocessing import preprocess_maps_from_plateifu, mask_velocity_maps, mask_binned_map, apply_bin_snr_threshold, apply_sigma_clip
 
 # ---------------------
 # Calculation functions
@@ -156,21 +156,8 @@ def calculate_dvsg_error_analytic(sv_ivar, gv_ivar, sv_clip, gv_clip, norm_metho
 
 def calculate_dvsg_from_plateifu(plateifu, **dvsg_kwargs):
 
-    # Load map
-    sv_map, gv_map, sv_mask, gv_mask, sv_ivar, gv_ivar, bin_ids, bin_snr, bin_ra, bin_dec, x_as, y_as = load_map(plateifu, **dvsg_kwargs)
-
-    # Extract masked values and flatten
-    sv_flat, gv_flat = mask_velocity_maps(sv_map, gv_map, sv_mask, gv_mask, bin_ids)
-    sv_ivar_flat, gv_ivar_flat = mask_velocity_maps(sv_ivar, gv_ivar, sv_mask, gv_mask, bin_ids)
-    bin_snr_flat = mask_binned_map(bin_snr, sv_mask, bin_ids)  # use stellar velocity mask
-
-    # Apply SNR threshold
-    # sv_flat, gv_flat = apply_snr_threshold(sv_flat, gv_flat, sv_ivar_flat, gv_ivar_flat, **dvsg_kwargs)
-    sv_flat, gv_flat = apply_bin_snr_threshold(sv_flat, gv_flat, bin_snr_flat, **dvsg_kwargs)
-
-    # Sigma clip and normalise maps
-    sv_clip, gv_clip = apply_sigma_clip(sv_flat, gv_flat)
-    sv_norm, gv_norm = normalise_map(sv_clip, gv_clip, **dvsg_kwargs)
+    # Load preprocessed maps
+    sv_norm, gv_norm = preprocess_maps_from_plateifu(plateifu, **dvsg_kwargs)
 
     # Calculate DVSG
     dvsg = calculate_dvsg(sv_norm, gv_norm, **dvsg_kwargs)
@@ -179,21 +166,17 @@ def calculate_dvsg_from_plateifu(plateifu, **dvsg_kwargs):
 
 def calculate_dvsg_diagnostics_from_plateifu(plateifu, **dvsg_kwargs):
 
-    # Load map
-    sv_map, gv_map, sv_mask, gv_mask, sv_ivar, gv_ivar, bin_ids, bin_snr, bin_ra, bin_dec, x_as, y_as = load_map(plateifu, **dvsg_kwargs)
+    # Load preprocessed maps
+    sv_norm, gv_norm = preprocess_maps_from_plateifu(plateifu, **dvsg_kwargs)
 
-    # Extract masked values and flatten
+    # Load flattened variance and sigma-clipped maps
+    sv_map, gv_map, sv_mask, gv_mask, sv_ivar, gv_ivar, bin_ids, bin_snr = load_maps(plateifu, **dvsg_kwargs)
     sv_flat, gv_flat = mask_velocity_maps(sv_map, gv_map, sv_mask, gv_mask, bin_ids)
-    sv_ivar_flat, gv_ivar_flat = mask_velocity_maps(sv_ivar, gv_ivar, sv_mask, gv_mask, bin_ids)
-    bin_snr_flat = mask_binned_map(bin_snr, sv_mask, bin_ids)  # use stellar velocity mask
-
-    # Apply SNR threshold
+    sv_ivar_flat, gv_ivar_flat = mask_velocity_maps(sv_map, gv_map, sv_mask, gv_mask, bin_ids)
+    bin_snr_flat = mask_binned_map(bin_snr, sv_mask, bin_ids)
     if dvsg_kwargs.get("snr_threshold") is not None:
         sv_flat, gv_flat = apply_bin_snr_threshold(sv_flat, gv_flat, bin_snr_flat, **dvsg_kwargs)
-
-    # Sigma clip and normalise maps
     sv_clip, gv_clip = apply_sigma_clip(sv_flat, gv_flat)
-    sv_norm, gv_norm = normalise_map(sv_clip, gv_clip, **dvsg_kwargs)
 
     # Calculate DVSG
     results = calculate_dvsg_diagnostics(sv_norm, gv_norm, **dvsg_kwargs)
@@ -224,14 +207,16 @@ def calculate_radial_dvsg_from_plateifu(plateifu : str, dvsg_kwargs : dict):
 
     # TODO: Refactor
 
-    # Execute pipeline to calculate residuals
-    sv_map, gv_map, sv_mask, gv_mask, sv_ivar, gv_ivar, bin_ids, bin_ra, bin_dec, x_as, y_as = load_map(plateifu, **dvsg_kwargs)
-    sv_flat, gv_flat = mask_velocity_maps(sv_map, gv_map, sv_mask, gv_mask, bin_ids, **dvsg_kwargs)
-    sv_norm, gv_norm = normalise_map(sv_flat, gv_flat, **dvsg_kwargs)
-    output = calculate_dvsg(sv_norm, gv_norm)
+    # Load preprocessed maps
+    sv_norm, gv_norm = preprocess_maps_from_plateifu(plateifu, **dvsg_kwargs)
+    
+    
+    output = calculate_dvsg_diagnostics(sv_norm, gv_norm)
     residual = output["residual"]
     
     # Load bin information
+    _, _, _, _, _, _, bin_ids, _ = load_maps(plateifu, **dvsg_kwargs)
+    _, _, bin_ra, bin_dec = load_map_coords(plateifu, **dvsg_kwargs)
     sv_ubins, sv_uindx, gv_ubins, gv_uindx = return_bin_indices(bin_ids)
     bin_centres = return_bin_coord_centres(bin_ra, bin_dec, sv_uindx, gv_uindx)
 
