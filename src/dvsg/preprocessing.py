@@ -1,6 +1,6 @@
 import numpy as np
 
-from .helpers import return_bin_indices
+from .helpers import return_bin_indices, load_map
 
 # ------------------------
 # Sigma-clipping functions
@@ -248,5 +248,28 @@ def normalise_map(sv_excl, gv_excl, norm_method, **extras):
         gv_norm = mad5_normalise_velocity_map(gv_excl)
     else:
         raise ValueError("norm_method must be 'minmax', 'zscore1', 'zscore5' or 'robust'")
+
+    return sv_norm, gv_norm
+
+
+# ---------------------------
+# Full preprocessing function
+# ---------------------------
+def preprocess_map_from_plateifu(plateifu: str, **dvsg_kwargs):
+
+    # Load map
+    sv_map, gv_map, sv_mask, gv_mask, sv_ivar, gv_ivar, bin_ids, bin_snr, bin_ra, bin_dec, x_as, y_as = load_map(plateifu, **dvsg_kwargs)
+
+    # Extract masked values and flatten
+    sv_flat, gv_flat = mask_velocity_maps(sv_map, gv_map, sv_mask, gv_mask, bin_ids)
+    bin_snr_flat = mask_binned_map(bin_snr, sv_mask, bin_ids)  # use stellar velocity mask
+
+    # Apply SNR threshold
+    if dvsg_kwargs.get("snr_threshold") is not None:
+        sv_flat, gv_flat = apply_bin_snr_threshold(sv_flat, gv_flat, bin_snr_flat, **dvsg_kwargs)
+
+    # Sigma clip and normalise maps
+    sv_clip, gv_clip = apply_sigma_clip(sv_flat, gv_flat)
+    sv_norm, gv_norm = normalise_map(sv_clip, gv_clip, **dvsg_kwargs)
 
     return sv_norm, gv_norm
