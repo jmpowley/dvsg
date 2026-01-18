@@ -18,10 +18,10 @@ A lower $\Delta V_{\star-g}$ value implies that there is more similarity between
 
 ## Overview
 
-The `calculations` module contains functions to calculate the $\Delta V_{\star-g}$ value of a galaxy, provided one has already obtained the stellar and gas velocity maps.
+The `calculations` module contains functions to calculate the $\Delta V_{\star-g}$ value of a galaxy.
 
-The `modelling` module contains the code used to create mock data and test how $\Delta V_{\star-g}$ changes as a function of offset angle or strength of assymetric drift.
+The `modelling` module contains the code used to create mock data to how $\Delta V_{\star-g}$ changes as a function of offset angle or strength of assymetric drift.
 
-The `plotting` module contains scripts used to quickly produce plots from possible output map products from `calculate_dvsg`.
+The `plotting` module contains funtions that can used to quickly produce science plots from a $\Delta V_{\star-g}$ calculation.
 
-The `helpers` module contains functions used to 
+The `helpers` module contains commonly-used functions in the above modules
