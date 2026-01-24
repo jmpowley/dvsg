@@ -1,5 +1,6 @@
 import numpy as np
 
+import smplotlib
 import matplotlib.pyplot as plt
 from matplotlib.patches import Circle
 from matplotlib.ticker import FixedLocator
@@ -20,6 +21,7 @@ from .preprocessing import (
 # ----------------------------
 # Map reconstruction functions
 # ----------------------------
+
 def transform_flat_to_map(flat, map_shape, bins, mask):
 
     # Set NaNs to zero
@@ -64,6 +66,7 @@ def reconstruct_stellar_gas_residual_maps(plateifu: str, **dvsg_kwargs):
 # --------------------
 # Formatting functions
 # --------------------
+
 def return_ticks_for_plotting(plateifu, nticks, dvsg_kwargs):
 
     # Load map
@@ -78,7 +81,7 @@ def return_ticks_for_plotting(plateifu, nticks, dvsg_kwargs):
         sv_flat, gv_flat = apply_bin_snr_threshold(sv_flat, gv_flat, bin_snr_flat, **dvsg_kwargs)
 
     # Sigma clip and normalise maps
-    sv_clip, gv_clip = apply_sigma_clip(sv_flat, gv_flat)
+    sv_clip, gv_clip = apply_sigma_clip(sv_flat, gv_flat, **dvsg_kwargs)
 
     sv_ticks = np.linspace(np.nanmin(sv_clip.compressed()), np.nanmax(sv_clip.compressed()), nticks)
     gv_ticks = np.linspace(np.nanmin(gv_clip.compressed()), np.nanmax(gv_clip.compressed()), nticks)
@@ -128,6 +131,7 @@ def mask_maps_for_plotting(sv_map, gv_map, sv_mask, gv_mask):
 # ------------------
 # Plotting functions
 # ------------------
+
 def plot_stellar_gas_residual_maps(
     ax,
     plateifu,
@@ -155,7 +159,7 @@ def plot_stellar_gas_residual_maps(
         "orig_ticks": True,
         "plot_error": False,
         "plot_bins": False,
-        "plot_r_eff": False,
+        "plot_error": True,
     }
     if plot_kwargs is not None:
         for key in plot_defaults:
@@ -169,9 +173,8 @@ def plot_stellar_gas_residual_maps(
     labelpad = plot_kwargs.get("labelpad")
     nticks = plot_kwargs.get("nticks")
     orig_ticks = plot_kwargs.get("orig_ticks")
-    plot_error = plot_kwargs.get("plot_error")
     plot_bins = plot_kwargs.get("plot_bins")
-    plot_r_eff = plot_kwargs.get("plot_r_eff")
+    plot_error = plot_kwargs.get("plot_error")
 
     # Create ticks and labels
     sv_ticks, gv_ticks = return_ticks_for_plotting(plateifu, nticks, dvsg_kwargs)
@@ -206,8 +209,11 @@ def plot_stellar_gas_residual_maps(
     cb2.set_label(r"Residual [Norm.]", labelpad=labelpad, fontsize=labsize)
     cb2.ax.tick_params(axis="y", which="major", labelsize=tcksize)
     # -- add DVSG
-    dvsg_str = (rf"$\Delta V_{{\star-g}}$ = {dvsg:.2f}" if not plot_error else rf"$\Delta V_{{\star-g}}$ = {dvsg:.2f} ± {dvsg_err:.2f}")
-    ax[2].text(0.97, 0.03, dvsg_str, fontsize=txtsize, transform=ax[2].transAxes, va="bottom", ha="right")
+    if (dvsg_err is not None) and plot_error:
+        dvsg_str = rf"$\Delta V_{{\star-g}}$ = {dvsg:.2f} ± {dvsg_err:.2f}"
+    else:
+        dvsg_str = rf"$\Delta V_{{\star-g}}$ = {dvsg:.2f}"
+    ax[2].text(0.97, 0.01, dvsg_str, fontsize=txtsize, transform=ax[2].transAxes, va="bottom", ha="right")
 
     # Subplot formatting
     for i in range(3):
@@ -215,7 +221,7 @@ def plot_stellar_gas_residual_maps(
         # overlay symbols
         if plot_bins:
             ax[i].scatter(bin_ra, bin_dec, color="k", marker=".", s=50, lw=0)
-        if plot_r_eff and r_eff is not None:
+        if r_eff is not None:
             ax[i].add_patch(Circle((0, 0), r_eff, fill=False, edgecolor="k", linewidth=1.2, transform=ax[i].transData))
         
         ax[i].set_xlabel(r"$\Delta \alpha~[\rm{arcsec}]$", size=labsize)
@@ -251,9 +257,8 @@ def plot_stellar_gas_residual_visual_maps(
         "labelpad": 0,
         "nticks": 5,
         "orig_ticks": True,
-        "plot_error": False,
         "plot_bins": False,
-        "plot_r_eff": False,
+        "plot_error": True
     }
     if plot_kwargs is not None:
         for key in plot_defaults:
@@ -267,9 +272,8 @@ def plot_stellar_gas_residual_visual_maps(
     labelpad = plot_kwargs.get("labelpad")
     nticks = plot_kwargs.get("nticks")
     orig_ticks = plot_kwargs.get("orig_ticks")
-    plot_error = plot_kwargs.get("plot_error")
     plot_bins = plot_kwargs.get("plot_bins")
-    plot_r_eff = plot_kwargs.get("plot_r_eff")
+    plot_error = plot_kwargs.get("plot_error")
 
     # Create ticks and labels
     sv_ticks, gv_ticks = return_ticks_for_plotting(plateifu, nticks, dvsg_kwargs)
@@ -283,7 +287,7 @@ def plot_stellar_gas_residual_visual_maps(
 
     # Stellar panel
     im0 = ax[0].pcolormesh(x_as, y_as, sv_norm, cmap="RdBu_r")
-    cb0 = ax[0].figure.colorbar(im0, ax=ax[0], fraction=0.05, pad=0.03)
+    cb0 = ax[0].figure.colorbar(im0, ax=ax[0], fraction=0.0465, pad=0.03)
     # -- add labels
     cb0.set_label(r"$V_{\star}~\rm{[Norm.~(km~s^{-1})]}$", labelpad=labelpad, fontsize=labsize)
     cb0.set_ticks(sv_loc.locs)
@@ -294,7 +298,7 @@ def plot_stellar_gas_residual_visual_maps(
 
     # Gas panel
     im1 = ax[1].pcolormesh(x_as, y_as, gv_norm, cmap="RdBu_r")
-    cb1 = ax[1].figure.colorbar(im1, ax=ax[1], fraction=0.05, pad=0.03)
+    cb1 = ax[1].figure.colorbar(im1, ax=ax[1], fraction=0.0465, pad=0.03)
     # -- add labels
     cb1.set_label(r"$V_{\star}~\rm{[Norm.~(km~s^{-1})]}$", labelpad=labelpad, fontsize=labsize)
     cb1.set_ticks(gv_loc.locs)
@@ -303,13 +307,16 @@ def plot_stellar_gas_residual_visual_maps(
 
     # Residual panel
     im2 = ax[2].pcolormesh(x_as, y_as, residual, cmap="viridis", shading="auto")
-    cb2 = ax[2].figure.colorbar(im2, ax=ax[2], fraction=0.05, pad=0.03)
+    cb2 = ax[2].figure.colorbar(im2, ax=ax[2], fraction=0.0465, pad=0.03)
     # -- add labels
     cb2.set_label(r"Residual [Norm.]", labelpad=labelpad, fontsize=labsize)
     cb2.ax.tick_params(axis="y", which="major", labelsize=tcksize)
     # -- add DVSG
-    dvsg_str = (rf"$\Delta V_{{\star-g}}$ = {dvsg:.2f}" if not plot_error else rf"$\Delta V_{{\star-g}}$ = {dvsg:.2f} ± {dvsg_err:.2f}")
-    ax[2].text(0.97, 0.03, dvsg_str, fontsize=txtsize, transform=ax[2].transAxes, va="bottom", ha="right")
+    if (dvsg_err is not None) and plot_error:
+        dvsg_str = rf"$\Delta V_{{\star-g}}$ = {dvsg:.2f} ± {dvsg_err:.2f}"
+    else:
+        dvsg_str = rf"$\Delta V_{{\star-g}}$ = {dvsg:.2f}"
+    ax[2].text(0.97, 0.00, dvsg_str, fontsize=txtsize, transform=ax[2].transAxes, va="bottom", ha="right")
 
     # Visual panel
     im3 = ax[3].imshow(image_data, origin="upper")
@@ -326,7 +333,7 @@ def plot_stellar_gas_residual_visual_maps(
             # overlay symbols
             if plot_bins:
                 ax[i].scatter(bin_ra, bin_dec, color="k", marker=".", s=50, lw=0)
-            if plot_r_eff and r_eff is not None:
+            if r_eff is not None:
                 ax[i].add_patch(Circle((0, 0), r_eff, fill=False, edgecolor="k", linewidth=1.2, transform=ax[i].transData))
             
             # add labels
