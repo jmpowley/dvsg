@@ -156,7 +156,7 @@ def mad5_normalise_velocity_map(velocity_map: np.ndarray):
 # -----------------------
 # Preprocessing functions
 # -----------------------
-def mask_velocity_maps(sv_map, gv_map, sv_mask, gv_mask, bin_ids, **extras):
+def mask_velocity_maps(sv_map: np.ndarray, gv_map: np.ndarray, sv_mask: np.ndarray, gv_mask: np.ndarray, bin_ids: np.ndarray, **extras):
     """
     Extracts stellar and gas velocity values in map from each bin.
     
@@ -183,7 +183,10 @@ def mask_binned_map(map, mask, bin_ids, **extras):
     return flat
 
 
-def apply_bin_snr_threshold(sv_flat, gv_flat, bin_snr_flat, snr_threshold, **extras):
+def apply_bin_snr_threshold(sv_flat: np.ndarray, gv_flat: np.ndarray, bin_snr_flat: np.ndarray, snr_threshold: float, **extras):
+
+    if snr_threshold is None:
+        return sv_flat, gv_flat
 
     reject = bin_snr_flat < snr_threshold
 
@@ -193,7 +196,7 @@ def apply_bin_snr_threshold(sv_flat, gv_flat, bin_snr_flat, snr_threshold, **ext
     return sv_flat, gv_flat
 
 
-def apply_velocity_snr_threshold(sv_flat, gv_flat, sv_ivar_flat, gv_ivar_flat, snr_threshold: float, **extras):
+def apply_velocity_snr_threshold(sv_flat: np.ndarray, gv_flat: np.ndarray, sv_ivar_flat: np.ndarray, gv_ivar_flat: np.ndarray, snr_threshold: float, **extras):
 
     # Calculate S/N ratio of velocity values
     sv_snr = np.abs(sv_flat) / (1 / np.sqrt(sv_ivar_flat))
@@ -209,11 +212,11 @@ def apply_velocity_snr_threshold(sv_flat, gv_flat, sv_ivar_flat, gv_ivar_flat, s
     return sv_flat, gv_flat
 
 
-def apply_sigma_clip(sv_flat, gv_flat, n: int = 3):
+def apply_sigma_clip(sv_flat: np.ndarray, gv_flat: np.ndarray, n_sigma: float, **extras):
 
     # Apply sigma clip
-    sv_excl = exclude_above_n_sigma(sv_flat, n=n)
-    gv_excl = exclude_above_n_sigma(gv_flat, n=n)
+    sv_excl = exclude_above_n_sigma(sv_flat, n_sigma)
+    gv_excl = exclude_above_n_sigma(gv_flat, n_sigma)
 
     return sv_excl, gv_excl
 
@@ -270,7 +273,7 @@ def preprocess_maps_from_plateifu(plateifu: str, **dvsg_kwargs):
         sv_flat, gv_flat = apply_bin_snr_threshold(sv_flat, gv_flat, bin_snr_flat, **dvsg_kwargs)
 
     # Sigma clip and normalise maps
-    sv_clip, gv_clip = apply_sigma_clip(sv_flat, gv_flat)
+    sv_clip, gv_clip = apply_sigma_clip(sv_flat, gv_flat, **dvsg_kwargs)
     sv_norm, gv_norm = normalise_map(sv_clip, gv_clip, **dvsg_kwargs)
 
     return sv_norm, gv_norm
