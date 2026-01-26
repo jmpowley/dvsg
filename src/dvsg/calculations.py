@@ -1,6 +1,8 @@
+import warnings
+
 import numpy as np
 
-from astropy.table import Table
+from astropy.table import Table, MaskedColumn
 
 from .helpers import load_maps, load_map_coords, return_bin_indices, return_bin_coord_centres
 from .preprocessing import preprocess_maps_from_plateifu, mask_velocity_maps, mask_binned_map, apply_bin_snr_threshold, apply_sigma_clip
@@ -108,6 +110,8 @@ def calculate_radial_dvsg(bin_centres, residual, sort_ascending: bool, **extras)
 def calculate_dvsg_error_analytic(sv_ivar, gv_ivar, sv_clip, gv_clip, norm_method, **extras):
     """Calculates the analytic uncertainty on the DVSG value of a galaxy
 
+    Returns None if 
+
     Parameters
     ----------
     sv_ivar : array_like
@@ -130,6 +134,7 @@ def calculate_dvsg_error_analytic(sv_ivar, gv_ivar, sv_clip, gv_clip, norm_metho
     if norm_method != "minmax":
         return None
 
+    # Calculate unnormalised ranges
     sv_range = np.nanmax(sv_clip) - np.nanmin(sv_clip)
     gv_range = np.nanmax(gv_clip) - np.nanmin(gv_clip)
 
@@ -141,8 +146,13 @@ def calculate_dvsg_error_analytic(sv_ivar, gv_ivar, sv_clip, gv_clip, norm_metho
     sv_err = np.sqrt(1.0 / sv_ivar[ok])
     gv_err = np.sqrt(1.0 / gv_ivar[ok])
 
+    # Check for null entries
     n = np.count_nonzero(ok)
+    if n == 0:
+        warnings.warn("analytic DVSG error could not be calculated: no okay points", UserWarning)
+        return None
     
+    # Calculate analytic error
     term = ((2.0 / sv_range) * sv_err) ** 2 + ((2.0 / gv_range) * gv_err) ** 2
     dvsg_err = (1.0 / n) * np.sqrt(np.nansum(term))
 
@@ -176,7 +186,7 @@ def calculate_dvsg_diagnostics_from_plateifu(plateifu, **dvsg_kwargs):
     bin_snr_flat = mask_binned_map(bin_snr, sv_mask, bin_ids)
     if dvsg_kwargs.get("snr_threshold") is not None:
         sv_flat, gv_flat = apply_bin_snr_threshold(sv_flat, gv_flat, bin_snr_flat, **dvsg_kwargs)
-    sv_clip, gv_clip = apply_sigma_clip(sv_flat, gv_flat)
+    sv_clip, gv_clip = apply_sigma_clip(sv_flat, gv_flat, **dvsg_kwargs)
 
     # Calculate DVSG
     results = calculate_dvsg_diagnostics(sv_norm, gv_norm, **dvsg_kwargs)
@@ -225,7 +235,7 @@ def calculate_radial_dvsg_from_plateifu(plateifu : str, dvsg_kwargs : dict):
 
     return bin_dists, residual
 
-def return_dvsg_table_from_plateifus(plateifu_list, **dvsg_kwargs):
+def return_dvsg_table_from_plateifus(plateifus, **dvsg_kwargs):
     """
     Function to create a table of DVSG values for a set of MaNGA galaxies using their plateifus and kwargs to pass to the dvsg package
 
@@ -233,26 +243,35 @@ def return_dvsg_table_from_plateifus(plateifu_list, **dvsg_kwargs):
     """
 
     # Create lists to store DVSG data
-    dvsg_list = []
-    dvsg_err_list = []
+    dvsgs = []
+    dvsg_errs = []
+    dvsg_err_masks = []
 
     # Loop over each plateifu
-    for plateifu in plateifu_list:
+    for i, plateifu in enumerate(plateifus):
 
         output = calculate_dvsg_diagnostics_from_plateifu(plateifu, **dvsg_kwargs)
+        
         dvsg = output["dvsg"]
+        dvsgs.append(dvsg)
+       
+        # append un/masked error values
         dvsg_err = output["dvsg_err"]
-
-        # Add DVSG data to lists
-        dvsg_list.append(dvsg)
-        dvsg_err_list.append(dvsg_err)
+        if dvsg_err is None:
+            dvsg_errs.append(0.0)
+            dvsg_err_masks.append(True)
+        else:
+            dvsg_errs.append(dvsg_err)
+            dvsg_err_masks.append(False)
 
     # Make astropy Table
     tb = Table()
-
-    # Add columns of data to table
-    tb['plateifu'] = plateifu_list
-    tb['dvsg'] = dvsg_list
-    tb['dvsg_err'] = dvsg_err_list
+    tb["plateifu"] = plateifus
+    tb["dvsg"] = dvsgs
+    tb["dvsg_err"] = MaskedColumn(
+        data=dvsg_errs,
+        mask=dvsg_err_masks,
+        dtype=float
+    )
 
     return tb
