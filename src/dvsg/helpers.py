@@ -12,7 +12,7 @@ from mangadap.util.fitsutil import DAPFitsUtil
 # -----------------
 # Loading functions
 # -----------------
-def download_map_from_plateifu(plateifu, bintype):
+def download_map_from_plateifu(plateifu, bintype, **extras):
 
     # Set Marvin release to DR17 and avoid API error
     config.setDR("DR17")
@@ -32,7 +32,7 @@ def download_map_from_plateifu(plateifu, bintype):
         print(f"Error: unable to download map {plateifu}: {e}")
 
 
-def load_local_hdul(plateifu : str, bintype: str):
+def load_local_hdul(plateifu : str, bintype: str, **extras):
 
     plate, ifu = plateifu.split("-")
     local_path = f"/Users/Jonah/sas/dr17/manga/spectro/analysis/v3_1_1/3.1.0/VOR10-MILESHC-MASTARSSP/{plate}/{ifu}/manga-{plate}-{ifu}-MAPS-{bintype}-MILESHC-MASTARSSP.fits.gz"
