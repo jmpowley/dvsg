@@ -183,7 +183,7 @@ def plot_stellar_gas_residual_maps(
     gv_loc, gv_labs = gv_ticker
 
     # Stellar panel
-    im0 = ax[0].pcolormesh(x_as, y_as, sv_norm, cmap="RdBu_r")
+    im0 = ax[0].imshow(sv_norm, cmap="RdBu_r", origin="lower", extent=[x_as.max(), x_as.min(), y_as.min(), y_as.max()])
     cb0 = ax[0].figure.colorbar(im0, ax=ax[0], fraction=0.05, pad=0.03)
     # -- add labels
     cb0.set_label(r"$V_{\star}~\rm{[Norm.~(km~s^{-1})]}$", labelpad=labelpad, fontsize=labsize)
@@ -194,7 +194,7 @@ def plot_stellar_gas_residual_maps(
     ax[0].text(0.03, 0.97, plateifu, fontsize=txtsize, transform=ax[0].transAxes, va="top", ha="left")
 
     # Gas panel
-    im1 = ax[1].pcolormesh(x_as, y_as, gv_norm, cmap="RdBu_r")
+    im1 = ax[1].imshow(gv_norm, cmap="RdBu_r", origin="lower", extent=[x_as.max(), x_as.min(), y_as.min(), y_as.max()])
     cb1 = ax[1].figure.colorbar(im1, ax=ax[1], fraction=0.05, pad=0.03)
     # -- add labels
     cb1.set_label(r"$V_{\star}~\rm{[Norm.~(km~s^{-1})]}$", labelpad=labelpad, fontsize=labsize)
@@ -203,7 +203,7 @@ def plot_stellar_gas_residual_maps(
     cb1.ax.tick_params(axis="y", which="major", labelsize=tcksize)
 
     # Residual panel
-    im2 = ax[2].pcolormesh(x_as, y_as, residual, cmap="viridis", shading="auto")
+    im2 = ax[2].imshow(residual, cmap="viridis", origin="lower", extent=[x_as.max(), x_as.min(), y_as.min(), y_as.max()])
     cb2 = ax[2].figure.colorbar(im2, ax=ax[2], fraction=0.05, pad=0.03)
     # -- add labels
     cb2.set_label(r"Residual [Norm.]", labelpad=labelpad, fontsize=labsize)
@@ -227,7 +227,7 @@ def plot_stellar_gas_residual_maps(
         ax[i].set_xlabel(r"$\Delta \alpha~[\rm{arcsec}]$", size=labsize)
         ax[i].set_ylabel(r"$\Delta \delta ~[\rm{arcsec}]$", size=labsize)
         ax[i].tick_params(axis="both", which="major", labelsize=tcksize)
-        ax[i].invert_xaxis()
+        # ax[i].invert_xaxis()
         ax[i].set_aspect("equal")
 
     return ax
@@ -286,7 +286,7 @@ def plot_stellar_gas_residual_visual_maps(
     image_data = image.data
 
     # Stellar panel
-    im0 = ax[0].pcolormesh(x_as, y_as, sv_norm, cmap="RdBu_r")
+    im0 = ax[0].imshow(sv_norm, cmap="RdBu_r", origin="lower", extent=[x_as.max(), x_as.min(), y_as.min(), y_as.max()])
     cb0 = ax[0].figure.colorbar(im0, ax=ax[0], fraction=0.0465, pad=0.03)
     # -- add labels
     cb0.set_label(r"$V_{\star}~\rm{[Norm.~(km~s^{-1})]}$", labelpad=labelpad, fontsize=labsize)
@@ -297,7 +297,7 @@ def plot_stellar_gas_residual_visual_maps(
     ax[0].text(0.03, 0.97, plateifu, fontsize=txtsize, transform=ax[0].transAxes, va="top", ha="left")
 
     # Gas panel
-    im1 = ax[1].pcolormesh(x_as, y_as, gv_norm, cmap="RdBu_r")
+    im1 = ax[1].imshow(gv_norm, cmap="RdBu_r", origin="lower", extent=[x_as.max(), x_as.min(), y_as.min(), y_as.max()])
     cb1 = ax[1].figure.colorbar(im1, ax=ax[1], fraction=0.0465, pad=0.03)
     # -- add labels
     cb1.set_label(r"$V_{\star}~\rm{[Norm.~(km~s^{-1})]}$", labelpad=labelpad, fontsize=labsize)
@@ -306,7 +306,7 @@ def plot_stellar_gas_residual_visual_maps(
     cb1.ax.tick_params(axis="y", which="major", labelsize=tcksize)
 
     # Residual panel
-    im2 = ax[2].pcolormesh(x_as, y_as, residual, cmap="viridis", shading="auto")
+    im2 = ax[2].imshow(residual, cmap="viridis", origin="lower", extent=[x_as.max(), x_as.min(), y_as.min(), y_as.max()])
     cb2 = ax[2].figure.colorbar(im2, ax=ax[2], fraction=0.0465, pad=0.03)
     # -- add labels
     cb2.set_label(r"Residual [Norm.]", labelpad=labelpad, fontsize=labsize)
@@ -339,7 +339,7 @@ def plot_stellar_gas_residual_visual_maps(
             # add labels
             ax[i].set_xlabel(r"$\Delta \alpha \ \;[\mathrm{arcsec}]$", size=labsize)
             ax[i].set_ylabel(r"$\Delta \delta \ \;[\mathrm{arcsec}]$", size=labsize)
-            ax[i].invert_xaxis()
+            # ax[i].invert_xaxis()
 
         # image subplot
         elif i == 3:
