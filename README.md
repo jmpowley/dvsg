@@ -9,12 +9,12 @@ $$
 $$
 
 where:
-- $V_{\star,\text{norm}}$ is the **normalised stellar velocity map**,
-- $V_{g,\text{norm}}$ is the **normalised gas velocity map**,
+- $V_{\star,\text{norm}}$ is the **normalised stellar velocity map**
+- $V_{g,\text{norm}}$ is the **normalised gas velocity map**
 - $\sum_{j} \left| {V_{\star,\text{norm}}^{j} - V^{j}_{g,\text{norm}}} \right|$ is the **sum** over all spaxels/bins, $j$, of the **absolute difference** between the normalised stellar and gas velocity maps
 - $N$ is the **number of bins/spaxels** contributing towards the sum
 
-A lower $\Delta V_{\star-g}$ value implies that there is more similarity between the kinematics a galaxy's of stellar and gas velocity components, whereas a higher $\Delta V_{\star-g}$ implies a greater degree of kinematic disturbance. For more details information about the steps to calculate $\Delta V_{\star-g}$,  please refer to Powley et al. (in submiited.).
+A lower $\Delta V_{\star-g}$ value implies that there is more similarity between the kinematics a galaxy's of stellar and gas velocity fields, whereas a higher $\Delta V_{\star-g}$ implies a greater degree of kinematic disturbance. For more details information about the steps to calculate $\Delta V_{\star-g}$,  please refer to Powley et al. (in submitted.).
 
 ## Overview
 
