@@ -26,6 +26,25 @@ The `plotting` module contains funtions that can used to quickly produce science
 
 The `helpers` module contains commonly-used functions in the above modules.
 
+## Installation
+
+You can install the latest development version of `dvsg` directly from GitHub using pip:
+
+<!-- ```bash
+pip install dvsg
+``` -->
+```bash
+pip install git+https://github.com/jmpowley/dvsg.git
+```
+
+For those who wish to install the latest development version of the code, clone the repository and install in editable mode:
+
+```bash
+git clone https://github.com/jmpowley/dvsg.git
+cd dvsg
+pip install -e .
+```
+
 ## Citation.
 
 If you use this code in your research, please cite Powley et al. (in submitted.).
