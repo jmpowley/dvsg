@@ -25,3 +25,7 @@ The `modelling` module contains the `MapModel` Class, which creates mock data to
 The `plotting` module contains funtions that can used to quickly produce science plots from a $\Delta V_{\star-g}$ calculation.
 
 The `helpers` module contains commonly-used functions in the above modules.
+
+## Citation.
+
+If you use this code in your research, please cite Powley et al. (in submitted.).
