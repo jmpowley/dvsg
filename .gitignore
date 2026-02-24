@@ -7,3 +7,4 @@ __pycache__/
 *.csv
 *.jpg
 *.png
+src/dvsg/boneyard/
