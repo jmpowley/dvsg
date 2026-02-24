@@ -143,34 +143,29 @@ class MapModel:
         R = np.hypot(x_rel, y_rel)
         theta = np.arctan2(y_rel, x_rel)  # radians
         return x_rel, y_rel, R, theta
+    
 
     def rotate_map(self, angle, set_edges_to_nan: bool = True):
 
-        map = self.map
+        # Replace NaNs only in the temporary array for interpolation
+        map_to_rotate = self.map.copy()
+        nan_mask = np.isnan(map_to_rotate)
+        map_to_rotate[nan_mask] = 0.0
 
-        # Set edge NaNs to zero for rotation
-        nan_mask = np.isnan(map)
-        map[nan_mask] = 0.0
-        
         # Rotate map with original shape
-        map_off = rotate(input=map, angle=angle, reshape=False)
-        
-        # Apply masks
-        # -- use cookie cutter
+        map_off = rotate(input=map_to_rotate, angle=angle, reshape=False)
+
         if self.map_type in ["rotation_dominated", "dispersion_dominated"]:
             out = cookie_cutter(map_off, self.size, set_edges_to_nan=set_edges_to_nan)
-        # -- use input masks
         elif self.map_type == "input":
-            # -- rotate mask
             mask_to_rotate = self.mask.astype(int)
-            mask_off = rotate(input=mask_to_rotate, angle=angle, order=0, reshape=False)  # no interpolation
-            # -- keep unmasked values in both original and rotated mask
+            mask_off = rotate(input=mask_to_rotate, angle=angle, order=0, reshape=False)
             keep = (~self.mask & ~mask_off).astype(bool)
-            # -- apply mask
             out = map_off.copy()
             out[~keep] = np.nan
-        
+
         return out
+
 
     def rotation_dominated_map(self, v_max=200., r_turn=5., incl=60., pa=0., v_sys=0., normalise=True, return_meta=False):
         """
