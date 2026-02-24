@@ -7,6 +7,17 @@ from astropy.table import Table, MaskedColumn
 from .helpers import load_maps, load_map_coords, return_bin_indices, return_bin_coord_centres
 from .preprocessing import preprocess_maps_from_plateifu, mask_velocity_maps, mask_binned_map, apply_bin_snr_threshold, apply_sigma_clip
 
+_VALID_ERROR_TYPES = {"analytic", "stderr"}
+
+
+def _validate_error_type(error_type):
+    if error_type is None:
+        return None
+    if error_type not in _VALID_ERROR_TYPES:
+        allowed = ", ".join(sorted(_VALID_ERROR_TYPES))
+        raise ValueError(f"Unknown error_type: {error_type}. Allowed values are: {allowed}")
+    return error_type
+
 # ---------------------
 # Calculation functions
 # ---------------------
@@ -69,7 +80,12 @@ def calculate_dvsg_diagnostics(sv_norm: np.ndarray, gv_norm: np.ndarray, **extra
     
     residual = np.abs(sv_norm - gv_norm)
     dvsg = np.nanmean(residual)
-    dvsg_stderr = np.nanstd(residual) / np.sqrt(np.count_nonzero(residual))
+    # Count bins that actually contribute to the residual statistics.
+    n_valid = np.count_nonzero(np.isfinite(residual))
+    if n_valid == 0:
+        dvsg_stderr = np.nan
+    else:
+        dvsg_stderr = np.nanstd(residual) / np.sqrt(n_valid)
 
     # Compile output
     dvsg_output = {}
@@ -197,14 +213,12 @@ def calculate_dvsg_diagnostics_from_plateifu(plateifu, **dvsg_kwargs):
     }
 
     # Error handling
-    error_type = dvsg_kwargs.get("error_type")
+    error_type = _validate_error_type(dvsg_kwargs.get("error_type"))
     if error_type is not None:
         if error_type == "stderr":
             dvsg_err = results["dvsg_stderr"]
         elif error_type == "analytic":
             dvsg_err = calculate_dvsg_error_analytic(sv_ivar_flat, gv_ivar_flat, sv_clip, gv_clip, **dvsg_kwargs)
-        else:
-            raise ValueError(f"Unknown error_type: {error_type}")
         output["dvsg_err"] = dvsg_err
 
     # Residual handling
