@@ -28,7 +28,8 @@ The `helpers` module contains commonly-used functions in the above modules.
 
 ## Installation
 
-You can install the latest development version of `dvsg` directly from GitHub using pip:
+<!-- You can install the latest version of `dvsg` using pip: -->
+You can install the latest version of `dvsg` directly from GitHub using pip:
 
 <!-- ```bash
 pip install dvsg
