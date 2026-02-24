@@ -160,7 +160,6 @@ def plot_stellar_gas_residual_maps(
         "labelpad": 0,
         "nticks": 5,
         "orig_ticks": True,
-        "plot_error": False,
         "plot_bins": False,
         "plot_error": True,
     }

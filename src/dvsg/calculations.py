@@ -241,7 +241,7 @@ def calculate_radial_dvsg_from_plateifu(plateifu : str, dvsg_kwargs : dict):
     # Load bin information
     _, _, _, _, _, _, bin_ids, _ = load_maps(plateifu, **dvsg_kwargs)
     _, _, bin_ra, bin_dec = load_map_coords(plateifu, **dvsg_kwargs)
-    sv_ubins, sv_uindx, gv_ubins, gv_uindx = return_bin_indices(bin_ids)
+    _, sv_uindx, _, gv_uindx = return_bin_indices(bin_ids)
     bin_centres = return_bin_coord_centres(bin_ra, bin_dec, sv_uindx, gv_uindx)
 
     # Calculate radial dvsg
