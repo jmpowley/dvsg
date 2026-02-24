@@ -62,10 +62,18 @@ def load_local_hdul(plateifu : str, bintype: str, **extras):
     analysis_dir = os.environ.get("MANGA_SPECTRO_ANALYSIS")
     if analysis_dir is None:
         raise EnvironmentError("MANGA_SPECTRO_ANALYSIS is not set. Please set this environment variable.")
+    drp_version = os.environ.get("MANGADRP_VER")
+    if drp_version is None:
+        raise EnvironmentError("MANGADRP_VER is not set. Please set this environment variable.")
+    dap_version = os.environ.get("MANGADAP_VER")
+    if dap_version is None:
+        raise EnvironmentError("MANGADAP_VER is not set. Please set this environment variable.")
     
     plate, ifu = plateifu.split("-")
     local_path = os.path.join(
         analysis_dir,
+        drp_version,
+        dap_version,
         f"{bintype}-MILESHC-MASTARSSP",
         plate,
         ifu,
@@ -97,7 +105,7 @@ def load_maps(plateifu: str, mode: str, bintype: str, **extras):
     sv_map : np.ndarray
         Stellar velocity map
     gv_map : np.ndarray
-        Gas velocity map (H-alpha)
+        Gas velocity map
     sv_mask : np.ndarray
         Stellar velocity mask
     gv_mask : np.ndarray
@@ -117,7 +125,7 @@ def load_maps(plateifu: str, mode: str, bintype: str, **extras):
 
         # Extract velocity maps, masks, and inverse variance
         sv_map = hdul["STELLAR_VEL"].data
-        gv_map = hdul["EMLINE_GVEL"].data[23]  # H-alpha
+        gv_map = hdul["EMLINE_GVEL"].data[23]  # H-alpha channel
         sv_mask = hdul["STELLAR_VEL_MASK"].data
         gv_mask = hdul["EMLINE_GVEL_MASK"].data[23]
         sv_ivar = hdul["STELLAR_VEL_IVAR"].data
