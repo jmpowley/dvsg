@@ -1,6 +1,9 @@
 import numpy as np
 
-import smplotlib
+try:
+    import smplotlib  # noqa: F401
+except ImportError:
+    smplotlib = None
 import matplotlib.pyplot as plt
 from matplotlib.patches import Circle
 from matplotlib.ticker import FixedLocator
