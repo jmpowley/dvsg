@@ -45,6 +45,8 @@ A conda environment with pinned dependencies that resolves dependency conflicts 
 conda env create -f environment.yml
 ```
 
+Some functions in `helpers` rely on a local installation of MaNGA Data Analysis Pipeline (DAP) products. If you would like to use these functions, you will need to define the environment variables outlined in the [DAP documentation](https://sdss-mangadap.readthedocs.io/en/latest/execution.html#local-environment-setup-for-survey-level-manga-analysis).
+
 ## Citation
 
 If you use this code in your research, please cite Powley et al. (submitted.).
