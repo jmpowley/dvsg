@@ -1,5 +1,5 @@
 # DVSG
-A Python module to calculate the kinematic disturbance parameter $\Delta V_{\star-g}$ (pronounced 'DVSG') for a galaxy.
+A Python module to calculate the kinematic disturbance parameter $\Delta V_{\star-g}$ (pronounced 'DVSG').
 
 ## Background
 Following **Powley et al. (submitted.)**, a galaxy's $\Delta V_{\star-g}$ value is defined as:
