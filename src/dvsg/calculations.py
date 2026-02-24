@@ -198,7 +198,7 @@ def calculate_dvsg_diagnostics_from_plateifu(plateifu, **dvsg_kwargs):
     # Load flattened variance and sigma-clipped maps
     sv_map, gv_map, sv_mask, gv_mask, sv_ivar, gv_ivar, bin_ids, bin_snr = load_maps(plateifu, **dvsg_kwargs)
     sv_flat, gv_flat = mask_velocity_maps(sv_map, gv_map, sv_mask, gv_mask, bin_ids)
-    sv_ivar_flat, gv_ivar_flat = mask_velocity_maps(sv_map, gv_map, sv_mask, gv_mask, bin_ids)
+    sv_ivar_flat, gv_ivar_flat = mask_velocity_maps(sv_ivar, gv_ivar, sv_mask, gv_mask, bin_ids)
     bin_snr_flat = mask_binned_map(bin_snr, sv_mask, bin_ids)
     if dvsg_kwargs.get("snr_threshold") is not None:
         sv_flat, gv_flat = apply_bin_snr_threshold(sv_flat, gv_flat, bin_snr_flat, **dvsg_kwargs)
