@@ -45,7 +45,7 @@ A core environment is provided in `environment-core.yml`:
 conda env create -f environment-core.yml
 ```
 
-A full environment with plotting, testing, and MaNGA/Marvin dependencies is provided in `environment.yml`:
+An environment with MaNGA/Marvin dependencies is provided in `environment.yml`:
 ```bash
 conda env create -f environment.yml
 ```
