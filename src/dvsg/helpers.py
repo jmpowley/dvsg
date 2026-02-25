@@ -140,8 +140,7 @@ def load_maps(plateifu: str, mode: str, bintype: str, **extras):
             bin_snr = hdul["BIN_SNR"].data
 
         except Exception as e:
-            print(f"Error loading {plateifu} using local method: {e}")
-            return None
+            raise RuntimeError(f"Error loading {plateifu} using local method: {e}") from e
 
     elif mode == "remote":
         try:
@@ -151,12 +150,14 @@ def load_maps(plateifu: str, mode: str, bintype: str, **extras):
             maps = Maps(plateifu=plateifu, mode="remote", bintype=bintype)
 
             # Extract velocity products
-            sv_map = maps.stellar_vel.value
-            gv_map = maps.emline_gvel_ha_6564.value
-            sv_mask = maps.stellar_vel_mask.value
-            gv_mask = maps.emline_gvel_mask_ha_6564.value
-            sv_ivar = maps.stellar_vel_ivar.value
-            gv_ivar = maps.emline_gvel_ivar_ha_6564.value
+            sv = maps.stellar_vel
+            gv = maps.emline_gvel_ha_6564
+            sv_map = sv.value
+            gv_map = gv.value
+            sv_mask = np.asarray(sv.mask)
+            gv_mask = np.asarray(gv.mask)
+            sv_ivar = np.asarray(sv.ivar)
+            gv_ivar = np.asarray(gv.ivar)
 
             # Extract bin information
             bin_ids = np.stack([
@@ -171,8 +172,7 @@ def load_maps(plateifu: str, mode: str, bintype: str, **extras):
             bin_snr = maps.bin_snr.value
 
         except Exception as e:
-            print(f"Error loading {plateifu} using remote method: {e}")
-            return None
+            raise RuntimeError(f"Error loading {plateifu} using remote method: {e}") from e
 
     else:
         raise ValueError(f"Invalid mode, got {mode}")
