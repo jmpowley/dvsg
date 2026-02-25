@@ -40,7 +40,12 @@ cd dvsg
 pip install -e .
 ```
 
-A conda environment with pinned dependencies that resolves dependency conflicts with `sdss-marvin` and `sdss-mangadap` is provided in `environment.yml`:
+A core environment is provided in `environment-core.yml`:
+```bash
+conda env create -f environment-core.yml
+```
+
+A full environment with plotting, testing, and MaNGA/Marvin dependencies is provided in `environment.yml`:
 ```bash
 conda env create -f environment.yml
 ```
