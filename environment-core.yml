@@ -1,0 +1,13 @@
+name: dvsg-core
+
+channels:
+  - conda-forge
+
+dependencies:
+  - python=3.10
+  - numpy
+  - scipy
+  - astropy
+  - pip
+  - pip:
+    - git+https://github.com/jmpowley/dvsg.git
