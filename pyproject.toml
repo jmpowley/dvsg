@@ -26,6 +26,11 @@ plotting = [
 dev = [
   "pytest>=7",
 ]
+build = [
+  "build>=1.4",
+  "packaging>=24",
+  "wheel>=0.46",
+]
 
 [tool.setuptools]
 include-package-data = true

@@ -4,17 +4,23 @@ channels:
   - conda-forge
 
 dependencies:
-  - python=3.10
-  - numpy=1.26.4
-  - scipy=1.13.1
-  - matplotlib=3.9.2
-  - astropy=6.0.1
-  - wheel=0.45.1
-  - packaging=22.0
+  - python=3.11
+  - numpy>=1.26.4,<2
+  - scipy>=1.13.1
+  - matplotlib>=3.8
+  - astropy>=6,<7
+  - packaging=20.9
+  - setuptools<81
   - pip
   - pip:
-    - pytest
-    - sdss-marvin>=2.8.1
-    - sdss-mangadap==4.1.1
+    # - ipykernel<7
+    # - ipywidgets<9,>=8
+    # - jupyter-client<8
+    # - jupyter-core<5.4
+    - marshmallow<4
+    - webargs<6
+    - marvin
+    - sdss-marvin>=2.8.2
+    - sdss-mangadap>=4.3.0
     - smplotlib
     - git+https://github.com/jmpowley/dvsg.git
