@@ -1,7 +1,7 @@
 import numpy as np
 
 try:
-    import smplotlib  # noqa: F401
+    import smplotlib
 except ImportError:
     smplotlib = None
 import matplotlib.pyplot as plt
@@ -115,11 +115,11 @@ def format_ticks(sv_ticks, gv_ticks, orig_ticks):
     gv_labels = []
     for nt, st, gt in zip(ticks, sv_ticks, gv_ticks):
         if orig_ticks:
-            # add unnormalised ticks
+            # Unnormalised
             sv_labels.append(r"{:.2f} ({:.1f})".format(nt, st))
             gv_labels.append(r"{:.2f} ({:.1f})".format(nt, gt))
         else:
-            # keep ticks normalised
+            # Normalised
             sv_labels.append(r"{:.2f}".format(nt))
             gv_labels.append(r"{:.2f}".format(nt))
 
@@ -197,18 +197,15 @@ def plot_stellar_gas_residual_maps(
     # Stellar panel
     im0 = ax[0].imshow(sv_norm, cmap="RdBu_r", origin="lower", extent=[x_as.max(), x_as.min(), y_as.min(), y_as.max()])
     cb0 = ax[0].figure.colorbar(im0, ax=ax[0], fraction=0.05, pad=0.03)
-    # -- add labels
     cb0.set_label(r"$V_{\star}~\rm{[Norm.~(km~s^{-1})]}$", labelpad=labelpad, fontsize=labsize)
     cb0.set_ticks(sv_loc.locs)
     cb0.set_ticklabels(sv_labs)
     cb0.ax.tick_params(axis="y", which="major", labelsize=tcksize)
-    # -- add plateifu
     ax[0].text(0.03, 0.97, plateifu, fontsize=txtsize, transform=ax[0].transAxes, va="top", ha="left")
 
     # Gas panel
     im1 = ax[1].imshow(gv_norm, cmap="RdBu_r", origin="lower", extent=[x_as.max(), x_as.min(), y_as.min(), y_as.max()])
     cb1 = ax[1].figure.colorbar(im1, ax=ax[1], fraction=0.05, pad=0.03)
-    # -- add labels
     cb1.set_label(r"$V_{\star}~\rm{[Norm.~(km~s^{-1})]}$", labelpad=labelpad, fontsize=labsize)
     cb1.set_ticks(gv_loc.locs)
     cb1.set_ticklabels(gv_labs)
@@ -217,10 +214,8 @@ def plot_stellar_gas_residual_maps(
     # Residual panel
     im2 = ax[2].imshow(residual, cmap="viridis", origin="lower", extent=[x_as.max(), x_as.min(), y_as.min(), y_as.max()])
     cb2 = ax[2].figure.colorbar(im2, ax=ax[2], fraction=0.05, pad=0.03)
-    # -- add labels
     cb2.set_label(r"Residual [Norm.]", labelpad=labelpad, fontsize=labsize)
     cb2.ax.tick_params(axis="y", which="major", labelsize=tcksize)
-    # -- add DVSG
     if (dvsg_err is not None) and plot_error:
         dvsg_str = rf"$\Delta V_{{\star-g}}$ = {dvsg:.2f} ± {dvsg_err:.2f}"
     else:
@@ -229,8 +224,7 @@ def plot_stellar_gas_residual_maps(
 
     # Subplot formatting
     for i in range(3):
-        
-        # overlay symbols
+
         if plot_bins:
             ax[i].scatter(bin_ra, bin_dec, color="k", marker=".", s=50, lw=0)
         if r_eff is not None:
@@ -239,7 +233,6 @@ def plot_stellar_gas_residual_maps(
         ax[i].set_xlabel(r"$\Delta \alpha~[\rm{arcsec}]$", size=labsize)
         ax[i].set_ylabel(r"$\Delta \delta ~[\rm{arcsec}]$", size=labsize)
         ax[i].tick_params(axis="both", which="major", labelsize=tcksize)
-        # ax[i].invert_xaxis()
         ax[i].set_aspect("equal")
 
     return ax
@@ -249,7 +242,7 @@ def plot_stellar_gas_residual_visual_maps(
     plateifu,
     x_as, y_as,
     bin_ra, bin_dec,
-    sv_norm, gv_norm, residual,
+    sv_norm, gv_norm, residual, image,
     dvsg,
     dvsg_kwargs: dict,
     dvsg_err = None,
@@ -290,14 +283,9 @@ def plot_stellar_gas_residual_visual_maps(
     sv_loc, sv_labs = sv_ticker
     gv_loc, gv_labs = gv_ticker
 
-    # Load image
-    image = Image(plateifu)
-    image_data = image.data
-
     # Stellar panel
     im0 = ax[0].imshow(sv_norm, cmap="RdBu_r", origin="lower", extent=[x_as.max(), x_as.min(), y_as.min(), y_as.max()])
     cb0 = ax[0].figure.colorbar(im0, ax=ax[0], fraction=0.0465, pad=0.03)
-    # -- add labels
     cb0.set_label(r"$V_{\star}~\rm{[Norm.~(km~s^{-1})]}$", labelpad=labelpad, fontsize=labsize)
     cb0.set_ticks(sv_loc.locs)
     cb0.set_ticklabels(sv_labs)
@@ -308,7 +296,6 @@ def plot_stellar_gas_residual_visual_maps(
     # Gas panel
     im1 = ax[1].imshow(gv_norm, cmap="RdBu_r", origin="lower", extent=[x_as.max(), x_as.min(), y_as.min(), y_as.max()])
     cb1 = ax[1].figure.colorbar(im1, ax=ax[1], fraction=0.0465, pad=0.03)
-    # -- add labels
     cb1.set_label(r"$V_{\star}~\rm{[Norm.~(km~s^{-1})]}$", labelpad=labelpad, fontsize=labsize)
     cb1.set_ticks(gv_loc.locs)
     cb1.set_ticklabels(gv_labs)
@@ -317,10 +304,8 @@ def plot_stellar_gas_residual_visual_maps(
     # Residual panel
     im2 = ax[2].imshow(residual, cmap="viridis", origin="lower", extent=[x_as.max(), x_as.min(), y_as.min(), y_as.max()])
     cb2 = ax[2].figure.colorbar(im2, ax=ax[2], fraction=0.0465, pad=0.03)
-    # -- add labels
     cb2.set_label(r"Residual [Norm.]", labelpad=labelpad, fontsize=labsize)
     cb2.ax.tick_params(axis="y", which="major", labelsize=tcksize)
-    # -- add DVSG
     if (dvsg_err is not None) and plot_error:
         dvsg_str = rf"$\Delta V_{{\star-g}}$ = {dvsg:.2f} ± {dvsg_err:.2f}"
     else:
@@ -328,7 +313,7 @@ def plot_stellar_gas_residual_visual_maps(
     ax[2].text(0.97, 0.00, dvsg_str, fontsize=txtsize, transform=ax[2].transAxes, va="bottom", ha="right")
 
     # Visual panel
-    im3 = ax[3].imshow(image_data, origin="upper")
+    im3 = ax[3].imshow(image, origin="upper")
 
     # Subplot formatting
     for i in range(4):
