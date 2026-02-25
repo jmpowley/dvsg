@@ -33,7 +33,7 @@ You can install the latest version of `dvsg` directly from GitHub using pip:
 pip install git+https://github.com/jmpowley/dvsg.git
 ```
 
-For those who wish to install the latest development version of the code, clone the repository and install in editable mode:
+If you wish to install the latest development version of the code, clone the repository and install in editable mode:
 ```bash
 git clone https://github.com/jmpowley/dvsg.git
 cd dvsg
