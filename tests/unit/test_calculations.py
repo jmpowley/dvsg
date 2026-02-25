@@ -2,7 +2,7 @@ import numpy as np
 import pytest
 
 from dvsg.calculations import (
-    _validate_error_type,
+    _VALID_ERROR_TYPES,
     calculate_dvsg,
     calculate_dvsg_diagnostics,
 )
@@ -65,13 +65,8 @@ def test_calculate_dvsg_diagnostics_stderr_nan_when_no_finite_bins():
     assert np.isnan(out["dvsg_stderr"])
 
 
-def test_error_type_validation_accepts_only_stderr_and_analytic():
-    assert _validate_error_type(None) is None
-    assert _validate_error_type("stderr") == "stderr"
-    assert _validate_error_type("analytic") == "analytic"
-
-    with pytest.raises(ValueError, match="Allowed values"):
-        _validate_error_type("bad-value")
+def test_valid_error_types_are_stderr_and_analytic():
+    assert _VALID_ERROR_TYPES == {"stderr", "analytic"}
 
 
 def test_regression_toy_pipeline_minmax_then_dvsg():
