@@ -16,4 +16,5 @@ dependencies:
     - pytest
     - sdss-marvin>=2.8.1
     - sdss-mangadap==4.1.1
+    - smplotlib
     - git+https://github.com/jmpowley/dvsg.git

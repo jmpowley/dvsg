@@ -1,0 +1,34 @@
+[build-system]
+requires = ["setuptools>=61", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "dvsg"
+version = "0.1.0"
+description = "Tools used for the calculation of DVSG values"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+  "numpy>=1.26",
+  "scipy>=1.13",
+  "astropy>=6.0",
+]
+
+[project.optional-dependencies]
+manga = [
+  "sdss-marvin>=2.8.1",
+  "sdss-mangadap==4.1.1",
+]
+plotting = [
+  "matplotlib>=3.9",
+  "smplotlib",
+]
+dev = [
+  "pytest>=7",
+]
+
+[tool.setuptools]
+include-package-data = true
+
+[tool.setuptools.packages.find]
+where = ["src"]
