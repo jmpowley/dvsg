@@ -26,7 +26,7 @@ _VALID_ERROR_TYPES = {"analytic", "stderr"}
 # ---------------------
 def calculate_dvsg(sv_norm, gv_norm, **extras):
     """Calculate DVSG from aligned normalised stellar and gas arrays.
-    
+
     Parameters
     ----------
     sv_norm : array_like
@@ -43,14 +43,18 @@ def calculate_dvsg(sv_norm, gv_norm, **extras):
     ------
     Exception
         If input shapes do not match.
-    
+
     """
 
     if not np.shape(sv_norm) == np.shape(gv_norm):
         raise Exception('sv_norm and gv_norm must have the same shape. Currently have shapes ' + str(np.shape(sv_norm)) + ' and ' + str(np.shape(gv_norm)))
-    
+
     residual = np.abs(sv_norm - gv_norm)
-    dvsg = np.nanmean(residual)
+    n_valid = np.count_nonzero(np.isfinite(residual))
+    if n_valid == 0:
+        dvsg = np.nan
+    else:
+        dvsg = np.nanmean(residual)
 
     return dvsg
 
@@ -78,11 +82,13 @@ def calculate_dvsg_diagnostics(sv_norm, gv_norm, **extras):
 
     if not np.shape(sv_norm) == np.shape(gv_norm):
         raise Exception('sv_norm and gv_norm must have the same shape. Currently have shapes ' + str(np.shape(sv_norm)) + ' and ' + str(np.shape(gv_norm)))
-    
+
     residual = np.abs(sv_norm - gv_norm)
-    dvsg = np.nanmean(residual)
-    # Count bins that actually contribute to the residual statistics.
     n_valid = np.count_nonzero(np.isfinite(residual))
+    if n_valid == 0:
+        dvsg = np.nan
+    else:
+        dvsg = np.nanmean(residual)
     if n_valid == 0:
         dvsg_stderr = np.nan
     else:
@@ -95,6 +101,7 @@ def calculate_dvsg_diagnostics(sv_norm, gv_norm, **extras):
     dvsg_output["residual"] = residual
 
     return dvsg_output
+
 
 def calculate_radial_dvsg(bin_centres, residual, sort_ascending: bool, **extras):
     """Return bin radii and residuals, optionally sorted by radius.
@@ -115,7 +122,7 @@ def calculate_radial_dvsg(bin_centres, residual, sort_ascending: bool, **extras)
     residual : array_like
         Input residuals, optionally sorted by radius.
     """
-    
+
     # Calculate distance from each bin to centre
     bin_dists = np.sqrt(np.sum(bin_centres**2, axis=1))  # (x^2+y^2) summed along co-ordinate axis then sqrted
 
@@ -123,6 +130,7 @@ def calculate_radial_dvsg(bin_centres, residual, sort_ascending: bool, **extras)
         bin_dists, residual = zip(*sorted(zip(bin_dists, residual)))
 
     return bin_dists, residual
+
 
 def calculate_dvsg_error_analytic(sv_ivar, gv_ivar, sv_clip, gv_clip, norm_method, **extras):
     """Calculate analytic DVSG uncertainty from IVAR maps.
@@ -158,7 +166,7 @@ def calculate_dvsg_error_analytic(sv_ivar, gv_ivar, sv_clip, gv_clip, norm_metho
     sv_ok = np.isfinite(sv_clip) & np.isfinite(sv_ivar) & (sv_ivar > 0)
     gv_ok = np.isfinite(gv_clip) & np.isfinite(gv_ivar) & (gv_ivar > 0)
     ok = sv_ok & gv_ok
-    
+
     sv_err = np.sqrt(1.0 / sv_ivar[ok])
     gv_err = np.sqrt(1.0 / gv_ivar[ok])
 
@@ -167,7 +175,7 @@ def calculate_dvsg_error_analytic(sv_ivar, gv_ivar, sv_clip, gv_clip, norm_metho
     if n == 0:
         warnings.warn("analytic DVSG error could not be calculated: no okay points", UserWarning)
         return None
-    
+
     # Calculate analytic error
     term = ((2.0 / sv_range) * sv_err) ** 2 + ((2.0 / gv_range) * gv_err) ** 2
     dvsg_err = (1.0 / n) * np.sqrt(np.nansum(term))
@@ -190,6 +198,7 @@ def calculate_dvsg_from_plateifu(plateifu, **dvsg_kwargs):
     dvsg = calculate_dvsg(sv_norm, gv_norm, **dvsg_kwargs)
 
     return dvsg
+
 
 def calculate_dvsg_diagnostics_from_plateifu(plateifu, **dvsg_kwargs):
     """Calculate DVSG diagnostics for one plateifu.
@@ -229,11 +238,11 @@ def calculate_dvsg_diagnostics_from_plateifu(plateifu, **dvsg_kwargs):
     }
 
     # Error handling
-    if dvsg_kwargs.get("error_type", None) not in _VALID_ERROR_TYPES:
+    error_type = dvsg_kwargs.get("error_type", None)
+    if error_type is not None and error_type not in _VALID_ERROR_TYPES:
         allowed = ", ".join(sorted(_VALID_ERROR_TYPES))
         raise ValueError(f"Unknown error_type: {error_type}. Allowed values are: {allowed}")
-    else:
-        error_type = dvsg_kwargs.get("error_type")
+    elif error_type is not None:
         if error_type == "stderr":
             dvsg_err = results["dvsg_stderr"]
         elif error_type == "analytic":
@@ -246,18 +255,18 @@ def calculate_dvsg_diagnostics_from_plateifu(plateifu, **dvsg_kwargs):
 
     return output
 
-def calculate_radial_dvsg_from_plateifu(plateifu : str, dvsg_kwargs : dict):
+
+def calculate_radial_dvsg_from_plateifu(plateifu: str, dvsg_kwargs: dict):
     """Calculate radial DVSG components for one plateifu."""
 
     # TODO: Refactor
 
     # Load preprocessed maps
     sv_norm, gv_norm = preprocess_maps_from_plateifu(plateifu, **dvsg_kwargs)
-    
-    
+
     output = calculate_dvsg_diagnostics(sv_norm, gv_norm)
     residual = output["residual"]
-    
+
     # Load bin information
     _, _, _, _, _, _, bin_ids, _ = load_maps(plateifu, **dvsg_kwargs)
     _, _, bin_ra, bin_dec = load_map_coords(plateifu, **dvsg_kwargs)
@@ -268,6 +277,7 @@ def calculate_radial_dvsg_from_plateifu(plateifu : str, dvsg_kwargs : dict):
     bin_dists, residual = calculate_radial_dvsg(bin_centres, residual, **dvsg_kwargs)
 
     return bin_dists, residual
+
 
 def return_dvsg_table_from_plateifus(plateifus, **dvsg_kwargs):
     """Return a table of DVSG values for a list of plateifus.
@@ -294,10 +304,10 @@ def return_dvsg_table_from_plateifus(plateifus, **dvsg_kwargs):
     for i, plateifu in enumerate(plateifus):
 
         output = calculate_dvsg_diagnostics_from_plateifu(plateifu, **dvsg_kwargs)
-        
+
         dvsg = output["dvsg"]
         dvsgs.append(dvsg)
-       
+
         # append un/masked error values
         dvsg_err = output["dvsg_err"]
         if dvsg_err is None:

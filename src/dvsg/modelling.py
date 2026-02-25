@@ -15,33 +15,34 @@ __all__ = [
 # Mask helpers
 # -------------
 def cookie_cutter(array: np.ndarray, size: int, set_edges_to_nan: bool):
-        """Apply an octagon-like edge mask to a square 2D array."""
+    """Apply an octagon-like edge mask to a square 2D array."""
 
-        size = array.shape[0]
-        if array.shape != (size, size):
-            raise ValueError("input_array must be shape (size, size)")
+    size = array.shape[0]
+    if array.shape != (size, size):
+        raise ValueError("input_array must be shape (size, size)")
 
-        # Distance from diagonal to perform cut
-        diag_cut = int(0.65 * size)
+    # Distance from diagonal to perform cut
+    diag_cut = int(0.65 * size)
 
-        i = np.arange(size)[:, None]
-        j = np.arange(size)[None, :]
+    i = np.arange(size)[:, None]
+    j = np.arange(size)[None, :]
 
-        # Conditions for octagon-like mask
-        c1 = (j - i) <= diag_cut
-        c2 = (i - j) <= diag_cut
-        c3 = (i + j) <= (size - 1) + diag_cut
-        c4 = (i + j) >= (size - 1) - diag_cut
-        edge_mask = c1 & c2 & c3 & c4  # True inside octagon, False in cut corners
+    # Conditions for octagon-like mask
+    c1 = (j - i) <= diag_cut
+    c2 = (i - j) <= diag_cut
+    c3 = (i + j) <= (size - 1) + diag_cut
+    c4 = (i + j) >= (size - 1) - diag_cut
+    edge_mask = c1 & c2 & c3 & c4  # True inside octagon, False in cut corners
 
-        # Apply mask to input array
-        result = array.copy()
-        if set_edges_to_nan:
-            result[~edge_mask] = np.nan
-        else:
-            result[~edge_mask] = 0.0
+    # Apply mask to input array
+    result = array.copy()
+    if set_edges_to_nan:
+        result[~edge_mask] = np.nan
+    else:
+        result[~edge_mask] = 0.0
 
-        return result
+    return result
+
 
 def circular_mask(array: np.ndarray,
                   centre: Tuple[float, float],
@@ -92,23 +93,24 @@ def circular_mask(array: np.ndarray,
 
     return out
 
+
 # ---------------
 # Map model class
 # ---------------
 class MapModel:
     """Create synthetic velocity maps for controlled DVSG tests."""
 
-    def __init__(self, 
-                 map_type: str, 
-                 size: Optional[int] = 40, 
-                 pixel_scale: Optional[float] = 1.0, 
-                 center: Optional[Tuple[int, int]] = None, 
-                 seed: Optional[int] = None, 
+    def __init__(self,
+                 map_type: str,
+                 size: Optional[int] = 40,
+                 pixel_scale: Optional[float] = 1.0,
+                 center: Optional[Tuple[int, int]] = None,
+                 seed: Optional[int] = None,
                  input_map: Optional[np.ndarray] = None,
                  input_mask: Optional[np.ndarray] = None,
                  map_kwargs: Optional[dict] = None,
                  ):
-        
+
         self.size = size
         self.map_type = map_type
         self.pixel_scale = pixel_scale
@@ -125,7 +127,7 @@ class MapModel:
         map_builders = {
             "rotation_dominated": self.rotation_dominated_map,
             "dispersion_dominated": self.dispersion_dominated_map,
-            "input": self._load_input
+            "input": self._load_input,
         }
 
         try:
@@ -156,7 +158,6 @@ class MapModel:
         R = np.hypot(x_rel, y_rel)
         theta = np.arctan2(y_rel, x_rel)  # radians
         return x_rel, y_rel, R, theta
-    
 
     def rotate_map(self, angle, set_edges_to_nan: bool = True):
         """Rotate model map by angle and reapply edge/mask logic."""
@@ -180,7 +181,6 @@ class MapModel:
 
         return out
 
-
     def rotation_dominated_map(self, v_max=200., r_turn=5., incl=60., pa=0., v_sys=0., normalise=True, return_meta=False):
         """
         Build a toy axisymmetric rotation-dominated LOS velocity map.
@@ -194,7 +194,7 @@ class MapModel:
         x_rel, y_rel, R, theta = self._grid_r_theta()
 
         # Rotate by PA
-        x_r =  x_rel * np.cos(pa) + y_rel * np.sin(pa)
+        x_r = x_rel * np.cos(pa) + y_rel * np.sin(pa)
         y_r = -x_rel * np.sin(pa) + y_rel * np.cos(pa)
 
         # Deproject minor axis to get intrinsic radius in disc plane
