@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 from matplotlib.patches import Circle
 from matplotlib.ticker import FixedLocator
 
-from marvin.tools.image import Image
+from PIL import Image
 
 from mangadap.util.fitsutil import DAPFitsUtil
 
@@ -36,7 +36,26 @@ __all__ = [
 # ----------------------------
 
 def transform_flat_to_map(flat, map_shape, bins, mask):
-    """Reconstruct a 2D map from flattened bin values."""
+    """Reconstruct a 2D map from flattened binned values.
+
+    Parameters
+    ----------
+    flat : array_like
+        1-D array of binned values. NaNs are allowed.
+    map_shape : tuple[int, int]
+        Target 2D shape (ny, nx) of the reconstructed map.
+    bins : array_like
+        Integer bin index array used by DAPFitsUtil.reconstruct_map.
+    mask : array_like
+        Boolean mask or integer mask of shape ``map_shape``. ``True`` entries
+        indicate pixels to be masked.
+
+    Returns
+    -------
+    map_recon : numpy.ndarray
+        2D array shaped ``map_shape`` containing the reconstructed map. 
+        Masked pixels will be ``np.nan``.
+    """
 
     # Set NaNs to zero
     nan_mask = np.isnan(flat)
@@ -53,7 +72,20 @@ def transform_flat_to_map(flat, map_shape, bins, mask):
 
 
 def reconstruct_stellar_gas_residual_maps(plateifu: str, **dvsg_kwargs):
-    """Reconstruct 2D stellar, gas and residual maps for plotting."""
+    """Reconstruct stellar, gas and residual 2D maps for plotting.
+
+    Parameters
+    ----------
+    plateifu : str
+        MaNGA plate-IFU identifier.
+    **dvsg_kwargs :
+        Keyword arguments forwarded to ``load_maps`` and preprocessing functions.
+
+    Returns
+    -------
+    sv_norm_recon, gv_norm_recon, residual_recon : tuple[numpy.ndarray, ...]
+        Reconstructed 2D velocity map products (``ny, nx``). Invalid pixels are ``np.nan``.
+    """
 
     # Load bin information
     sv_map, _, sv_mask, _, _, _, bin_ids, bin_snr = load_maps(plateifu, **dvsg_kwargs)
@@ -82,7 +114,22 @@ def reconstruct_stellar_gas_residual_maps(plateifu: str, **dvsg_kwargs):
 # --------------------
 
 def return_ticks_for_plotting(plateifu, nticks, dvsg_kwargs):
-    """Return unnormalised stellar/gas tick values for plot labels."""
+    """Compute tick locations and (unnormalised) values for plotting.
+
+    Parameters
+    ----------
+    plateifu : str
+        MaNGA plate-IFU identifier.
+    nticks : int
+        Number of tick marks to produce.
+    dvsg_kwargs : dict
+        Pipeline options forwarded to preprocessing (e.g. snr_threshold).
+
+    Returns
+    -------
+    sv_ticks, gv_ticks : tuple[numpy.ndarray, numpy.ndarray]
+        unnormalised tick values for stellar and gas velocity ranges respectively.
+    """
 
     # Load map
     sv_map, gv_map, sv_mask, gv_mask, _, _, bin_ids, bin_snr = load_maps(plateifu, **dvsg_kwargs)
@@ -105,7 +152,22 @@ def return_ticks_for_plotting(plateifu, nticks, dvsg_kwargs):
 
 
 def format_ticks(sv_ticks, gv_ticks, orig_ticks):
-    """Format normalised tick positions and optional original-value labels."""
+    """Format tick positions and labels using matplotlib FixedLocator and ticklabel lists.
+
+    Parameters
+    ----------
+    sv_ticks, gv_ticks : array_like
+        1D arrays of unnormalised tick values
+    orig_ticks : bool
+        If True, tick labels include both normalised and original values
+        (``norm (orig)``). If False, labels contain only the normalised value.
+
+    Returns
+    -------
+    sv_ticker, gv_ticker : tuple
+        Each entry is a tuple (FixedLocator, list[str]) to be passed to
+        colorbar.set_ticks and colorbar.set_ticklabels.
+    """
 
     nticks = len(sv_ticks)
     ticks = np.linspace(-1, 1, nticks)
@@ -131,10 +193,20 @@ def format_ticks(sv_ticks, gv_ticks, orig_ticks):
 
 
 def mask_maps_for_plotting(sv_map, gv_map, sv_mask, gv_mask):
-    """
-    Apply masks to all spaxels in velocity map.
+    """Apply boolean masks to stellar and gas maps.
 
-    Used only for generating plots.
+    Parameters
+    ----------
+    sv_map, gv_map : array_like
+        Stellar and gas velocity maps (ny, nx)
+    sv_mask, gv_mask : array_like
+        Masks for the stellar and gas velocity maps. 
+        ``True`` marks invalid/masked pixels (set to ``np.nan``).
+
+    Returns
+    -------
+    sv_ma, gv_ma : tuple[numpy.ndarray, numpy.ndarray]
+        Masked stellar and gas velocity maps
     """
     sv_ma = sv_map.copy()
     gv_ma = gv_map.copy()
@@ -249,7 +321,7 @@ def plot_stellar_gas_residual_visual_maps(
     r_eff: float = None,
     plot_kwargs: dict = None,
 ):
-    """Plot stellar/gas/residual maps plus SDSS visual image."""
+    """Plot stellar/gas/residual maps plus visual image on existing axes."""
 
     # Set plotting arguments
     plot_defaults = {
@@ -313,6 +385,15 @@ def plot_stellar_gas_residual_visual_maps(
     ax[2].text(0.97, 0.00, dvsg_str, fontsize=txtsize, transform=ax[2].transAxes, va="bottom", ha="right")
 
     # Visual panel
+    print("Hello!")
+    print(type(image))
+
+    print(image.data.shape)
+
+    if isinstance(image, Image.Image):
+        image = np.asarray(image.data)
+    else:
+        image = np.asarray(image)
     im3 = ax[3].imshow(image, origin="upper")
 
     # Subplot formatting
