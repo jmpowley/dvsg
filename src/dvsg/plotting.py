@@ -21,11 +21,22 @@ from .preprocessing import (
     apply_sigma_clip, 
 )
 
+__all__ = [
+    "transform_flat_to_map",
+    "reconstruct_stellar_gas_residual_maps",
+    "return_ticks_for_plotting",
+    "format_ticks",
+    "mask_maps_for_plotting",
+    "plot_stellar_gas_residual_maps",
+    "plot_stellar_gas_residual_visual_maps",
+]
+
 # ----------------------------
 # Map reconstruction functions
 # ----------------------------
 
 def transform_flat_to_map(flat, map_shape, bins, mask):
+    """Reconstruct a 2D map from flattened bin values."""
 
     # Set NaNs to zero
     nan_mask = np.isnan(flat)
@@ -42,12 +53,12 @@ def transform_flat_to_map(flat, map_shape, bins, mask):
 
 
 def reconstruct_stellar_gas_residual_maps(plateifu: str, **dvsg_kwargs):
+    """Reconstruct 2D stellar, gas and residual maps for plotting."""
 
     # Load bin information
     sv_map, _, sv_mask, _, _, _, bin_ids, bin_snr = load_maps(plateifu, **dvsg_kwargs)
     sv_bins = bin_ids[1]
-    bin_coords_list = return_bin_coords(sv_bins)
-    nbins = len(bin_coords_list)
+    return_bin_coords(sv_bins)
     bin_snr_mask = bin_snr < dvsg_kwargs["snr_threshold"]
 
     # Load flat maps
@@ -71,9 +82,10 @@ def reconstruct_stellar_gas_residual_maps(plateifu: str, **dvsg_kwargs):
 # --------------------
 
 def return_ticks_for_plotting(plateifu, nticks, dvsg_kwargs):
+    """Return unnormalised stellar/gas tick values for plot labels."""
 
     # Load map
-    sv_map, gv_map, sv_mask, gv_mask, sv_ivar, gv_ivar, bin_ids, bin_snr = load_maps(plateifu, **dvsg_kwargs)
+    sv_map, gv_map, sv_mask, gv_mask, _, _, bin_ids, bin_snr = load_maps(plateifu, **dvsg_kwargs)
 
     # Extract masked values and flatten
     sv_flat, gv_flat = mask_velocity_maps(sv_map, gv_map, sv_mask, gv_mask, bin_ids)
@@ -93,6 +105,7 @@ def return_ticks_for_plotting(plateifu, nticks, dvsg_kwargs):
 
 
 def format_ticks(sv_ticks, gv_ticks, orig_ticks):
+    """Format normalised tick positions and optional original-value labels."""
 
     nticks = len(sv_ticks)
     ticks = np.linspace(-1, 1, nticks)
@@ -147,10 +160,7 @@ def plot_stellar_gas_residual_maps(
     r_eff: float = None,
     plot_kwargs: dict = None,
 ):
-    """Plot the 3-panel stellar / gas / residual maps on pre-existing axes.
-    
-    Plotting functionality customisable via plot_kwargs dict
-    """
+    """Plot stellar, gas and residual maps on existing axes."""
 
     # Set plotting arguments
     plot_defaults = {
@@ -246,10 +256,7 @@ def plot_stellar_gas_residual_visual_maps(
     r_eff: float = None,
     plot_kwargs: dict = None,
 ):
-    """Plot the 4-panel stellar / gas / residual /visual maps on pre-existing axes.
-    
-    Plotting functionality customisable via plot_kwargs dict
-    """
+    """Plot stellar/gas/residual maps plus SDSS visual image."""
 
     # Set plotting arguments
     plot_defaults = {

@@ -7,28 +7,31 @@ from astropy.table import Table, MaskedColumn
 from .helpers import load_maps, load_map_coords, return_bin_indices, return_bin_coord_centres
 from .preprocessing import preprocess_maps_from_plateifu, mask_velocity_maps, mask_binned_map, apply_bin_snr_threshold, apply_sigma_clip
 
+__all__ = [
+    "calculate_dvsg",
+    "calculate_dvsg_diagnostics",
+    "calculate_radial_dvsg",
+    "calculate_dvsg_error_analytic",
+    "calculate_dvsg_from_plateifu",
+    "calculate_dvsg_diagnostics_from_plateifu",
+    "calculate_radial_dvsg_from_plateifu",
+    "return_dvsg_table_from_plateifus",
+]
+
 _VALID_ERROR_TYPES = {"analytic", "stderr"}
 
-
-def _validate_error_type(error_type):
-    if error_type is None:
-        return None
-    if error_type not in _VALID_ERROR_TYPES:
-        allowed = ", ".join(sorted(_VALID_ERROR_TYPES))
-        raise ValueError(f"Unknown error_type: {error_type}. Allowed values are: {allowed}")
-    return error_type
 
 # ---------------------
 # Calculation functions
 # ---------------------
 def calculate_dvsg(sv_norm, gv_norm, **extras):
-    """Base function to calculate the DVSG value of a galaxy.
+    """Calculate DVSG from aligned normalised stellar and gas arrays.
     
     Parameters
     ----------
-    sv_norm : np.ndarray
+    sv_norm : array_like
         Normalised stellar velocity map
-    gv_norm : np.ndarray
+    gv_norm : array_like
         Normalised gas velocity map
 
     Returns
@@ -39,7 +42,7 @@ def calculate_dvsg(sv_norm, gv_norm, **extras):
     Raises
     ------
     Exception
-        If sv_norm and gv_norm are different shapes
+        If input shapes do not match.
     
     """
 
@@ -52,27 +55,25 @@ def calculate_dvsg(sv_norm, gv_norm, **extras):
     return dvsg
 
 
-def calculate_dvsg_diagnostics(sv_norm: np.ndarray, gv_norm: np.ndarray, **extras):
-    """Calculates the DVSG value of a galaxy along with extra diagnostics.
-
-    Includes standard error on DVSG and residual map.
+def calculate_dvsg_diagnostics(sv_norm, gv_norm, **extras):
+    """Calculate DVSG and return basic diagnostic products.
 
     Parameters
     ----------
-    sv_norm : np.ndarray
+    sv_norm : array_like
         Normalised stellar velocity map
-    gv_norm : np.ndarray
+    gv_norm : array_like
         Normalised gas velocity map
 
     Returns
     -------
     dvsg_output : dict
-        Dictionary containing diagnostics for DVSG
+        Dictionary containing ``dvsg``, ``dvsg_stderr`` and ``residual``.
 
     Raises
     ------
     Exception
-        If sv_norm and gv_norm are different shapes
+        If input shapes do not match.
     """
 
     if not np.shape(sv_norm) == np.shape(gv_norm):
@@ -96,23 +97,23 @@ def calculate_dvsg_diagnostics(sv_norm: np.ndarray, gv_norm: np.ndarray, **extra
     return dvsg_output
 
 def calculate_radial_dvsg(bin_centres, residual, sort_ascending: bool, **extras):
-    """Calculate radial distance of bin co-ordinates and return with residuals
+    """Return bin radii and residuals, optionally sorted by radius.
 
     Parameters
     ----------
     bin_centres : array_like
-        Co-ordinates of bins.
+        Bin coordinates as ``(n_bin, 2)``.
     residual : array_like
-        Residuals of each bin
+        Residual value per bin.
     sort_ascending : bool
-        Returns arrays sorted in ascending order by the bin distance
+        If True, sort outputs by radius.
 
     Returns
     -------
     bin_dists : array_like
-        Distances from each bin to the centre
+        Distance of each bin from map centre.
     residual : array_like
-        Same as input, but sorted by bin_dists if sort_ascending = True
+        Input residuals, optionally sorted by radius.
     """
     
     # Calculate distance from each bin to centre
@@ -124,27 +125,26 @@ def calculate_radial_dvsg(bin_centres, residual, sort_ascending: bool, **extras)
     return bin_dists, residual
 
 def calculate_dvsg_error_analytic(sv_ivar, gv_ivar, sv_clip, gv_clip, norm_method, **extras):
-    """Calculates the analytic uncertainty on the DVSG value of a galaxy
-
-    Returns None if 
+    """Calculate analytic DVSG uncertainty from IVAR maps.
 
     Parameters
     ----------
     sv_ivar : array_like
         Inverse variance of stellar velocity map
     gv_ivar : array_like
-        Inverse variance of stellar velocity map
+        Inverse variance of gas velocity map.
     sv_clip : array_like
         Sigma-clipped stellar velocity map
     gv_clip : array_like
         Sigma-clipped gas velocity map
     norm_method : str
-        Normalisation method using in the DVSG calculation. Must be ``minmax`` for propogate error
+        Normalisation method used in DVSG calculation.
 
     Returns
     -------
-    dvsg_err : float (None if norm_method not ``minmax``)
-        Uncertainty on DVSG from error propagation
+    dvsg_err : float or None
+        Uncertainty from error propagation. Returns ``None`` unless
+        ``norm_method == "minmax"``.
     """
 
     if norm_method != "minmax":
@@ -181,6 +181,7 @@ def calculate_dvsg_error_analytic(sv_ivar, gv_ivar, sv_clip, gv_clip, norm_metho
 # ----------------------
 
 def calculate_dvsg_from_plateifu(plateifu, **dvsg_kwargs):
+    """Calculate DVSG for one plateifu using pipeline kwargs."""
 
     # Load preprocessed maps
     sv_norm, gv_norm = preprocess_maps_from_plateifu(plateifu, **dvsg_kwargs)
@@ -191,6 +192,21 @@ def calculate_dvsg_from_plateifu(plateifu, **dvsg_kwargs):
     return dvsg
 
 def calculate_dvsg_diagnostics_from_plateifu(plateifu, **dvsg_kwargs):
+    """Calculate DVSG diagnostics for one plateifu.
+
+    Parameters
+    ----------
+    plateifu : str
+        MaNGA plate-IFU identifier.
+    **dvsg_kwargs
+        Pipeline options passed through preprocessing and error routines.
+
+    Returns
+    -------
+    dict
+        Dictionary containing ``dvsg`` and optional keys:
+        ``dvsg_err`` and ``residual``.
+    """
 
     # Load preprocessed maps
     sv_norm, gv_norm = preprocess_maps_from_plateifu(plateifu, **dvsg_kwargs)
@@ -213,8 +229,11 @@ def calculate_dvsg_diagnostics_from_plateifu(plateifu, **dvsg_kwargs):
     }
 
     # Error handling
-    error_type = _validate_error_type(dvsg_kwargs.get("error_type"))
-    if error_type is not None:
+    if dvsg_kwargs.get("error_type", None) not in _VALID_ERROR_TYPES:
+        allowed = ", ".join(sorted(_VALID_ERROR_TYPES))
+        raise ValueError(f"Unknown error_type: {error_type}. Allowed values are: {allowed}")
+    else:
+        error_type = dvsg_kwargs.get("error_type")
         if error_type == "stderr":
             dvsg_err = results["dvsg_stderr"]
         elif error_type == "analytic":
@@ -228,6 +247,7 @@ def calculate_dvsg_diagnostics_from_plateifu(plateifu, **dvsg_kwargs):
     return output
 
 def calculate_radial_dvsg_from_plateifu(plateifu : str, dvsg_kwargs : dict):
+    """Calculate radial DVSG components for one plateifu."""
 
     # TODO: Refactor
 
@@ -250,10 +270,19 @@ def calculate_radial_dvsg_from_plateifu(plateifu : str, dvsg_kwargs : dict):
     return bin_dists, residual
 
 def return_dvsg_table_from_plateifus(plateifus, **dvsg_kwargs):
-    """
-    Function to create a table of DVSG values for a set of MaNGA galaxies using their plateifus and kwargs to pass to the dvsg package
+    """Return a table of DVSG values for a list of plateifus.
 
-    Optionally adds the maps and binned data from each plateifu to the table
+    Parameters
+    ----------
+    plateifus : list[str]
+        MaNGA plate-IFU identifiers.
+    **dvsg_kwargs
+        Keyword arguments forwarded to the DVSG pipeline.
+
+    Returns
+    -------
+    astropy.table.Table
+        Table with ``plateifu``, ``dvsg`` and masked ``dvsg_err`` columns.
     """
 
     # Create lists to store DVSG data

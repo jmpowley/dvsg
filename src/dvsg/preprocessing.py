@@ -2,11 +2,27 @@ import numpy as np
 
 from .helpers import return_bin_indices, load_maps
 
+__all__ = [
+    "exclude_above_n_sigma",
+    "minmax_normalise_velocity_map",
+    "zscore1_normalise_velocity_map",
+    "zscore5_normalise_velocity_map",
+    "robust_scale_velocity_map",
+    "mad5_normalise_velocity_map",
+    "mask_velocity_maps",
+    "mask_binned_map",
+    "apply_bin_snr_threshold",
+    "apply_velocity_snr_threshold",
+    "apply_sigma_clip",
+    "normalise_map",
+    "preprocess_maps_from_plateifu",
+]
+
 # ------------------------
 # Sigma-clipping functions
 # ------------------------
 
-def exclude_above_n_sigma(velocity_map: np.ndarray, n: int):
+def exclude_above_n_sigma(velocity_map, n: int):
     """Excludes any values in a velocity map greater than n standard deviations
     from the mean velocity of the map (excluding NaNs).
 
@@ -14,7 +30,7 @@ def exclude_above_n_sigma(velocity_map: np.ndarray, n: int):
 
     Parameters
     ----------
-    velocity_map : np.ndarray
+    velocity_map : array_like
         The original velocity map.
 
     Returns
@@ -37,13 +53,21 @@ def exclude_above_n_sigma(velocity_map: np.ndarray, n: int):
 # -----------------------
 # Normalisation functions
 # -----------------------
-def minmax_normalise_velocity_map(velocity_map: np.ndarray):
+def minmax_normalise_velocity_map(velocity_map):
     """
     Normalises the given velocity map to the range [-1, 1] using the formula:
 
         x' = 2 * ((x - min(x)) / (max(x) - min(x))) - 1 
 
-    NaN values are ignored when computing the minimum and maximum.
+    Parameters
+    ----------
+    velocity_map : array_like
+        Input velocity values.
+
+    Returns
+    -------
+    np.ndarray
+        Normalised map. NaNs are preserved.
     """
 
     velocity_map = np.asarray(velocity_map, dtype=float)  # ensure float copy
@@ -58,16 +82,19 @@ def minmax_normalise_velocity_map(velocity_map: np.ndarray):
     return normalised_velocity_map
 
 
-def zscore1_normalise_velocity_map(velocity_map: np.ndarray):
-    '''
-    Apply Gaussian/Z-score normalisation to a velocity map
+def zscore1_normalise_velocity_map(velocity_map):
+    """Apply z-score normalisation ``(X - mean) / std`` to a velocity map.
 
-    Z = (X - mu) / sigma
+    Parameters
+    ----------
+    velocity_map : array_like
+        Input velocity values.
 
-    Where X is the data, mu is the mean of the data and sigma is the standard deviation
-
-    The normalised data has a mean of 0 and standard deviation of 1
-    '''
+    Returns
+    -------
+    np.ndarray
+        Z-score normalised map.
+    """
     velocity_map = np.asarray(velocity_map, dtype=float)  # ensure float copy
 
     if np.nanmin(velocity_map) == np.nanmax(velocity_map):
@@ -84,16 +111,19 @@ def zscore1_normalise_velocity_map(velocity_map: np.ndarray):
     return normalised_map
 
 
-def zscore5_normalise_velocity_map(velocity_map: np.ndarray):
-    '''
-    Apply Gaussian/Z-score normalisation to a velocity map
+def zscore5_normalise_velocity_map(velocity_map):
+    """Apply 5-sigma z-score scaling ``(X - mean) / (5*std)``.
 
-    Z = (X - mu) / (5 * sigma)
+    Parameters
+    ----------
+    velocity_map : array_like
+        Input velocity values.
 
-    Where X is the data, mu is the mean of the data and sigma is the standard deviation
-
-    The normalised data has a mean of 0 and a range [-1, 1]
-    '''
+    Returns
+    -------
+    np.ndarray
+        Scaled z-score map.
+    """
     velocity_map = np.asarray(velocity_map, dtype=float)  # ensure float copy
 
     if np.nanmin(velocity_map) == np.nanmax(velocity_map):
@@ -110,7 +140,19 @@ def zscore5_normalise_velocity_map(velocity_map: np.ndarray):
     return normalised_map
 
 
-def robust_scale_velocity_map(velocity_map: np.ndarray):
+def robust_scale_velocity_map(velocity_map):
+    """Apply robust median/IQR scaling to a velocity map.
+
+    Parameters
+    ----------
+    velocity_map : array_like
+        Input velocity values.
+
+    Returns
+    -------
+    np.ndarray
+        Robust-scaled map.
+    """
 
     velocity_25, velocity_50, velocity_75 = np.nanpercentile(velocity_map, q=[25, 50, 75])
 
@@ -119,7 +161,7 @@ def robust_scale_velocity_map(velocity_map: np.ndarray):
     return robust_scaled_map
 
 
-def mad5_normalise_velocity_map(velocity_map: np.ndarray):
+def mad5_normalise_velocity_map(velocity_map):
     """
     Apply 5σ robust (MAD-based) normalisation to a velocity map.
 
@@ -130,6 +172,16 @@ def mad5_normalise_velocity_map(velocity_map: np.ndarray):
 
     The resulting map has median ≈ 0.
     Values within ±5σ (in a Gaussian sense) map roughly to [-1, 1].
+
+    Parameters
+    ----------
+    velocity_map : array_like
+        Input velocity values.
+
+    Returns
+    -------
+    np.ndarray
+        MAD-based normalised map.
     """
     velocity_map = np.asarray(velocity_map, dtype=float)
 
@@ -157,10 +209,21 @@ def mad5_normalise_velocity_map(velocity_map: np.ndarray):
 # Preprocessing functions
 # -----------------------
 def mask_velocity_maps(sv_map: np.ndarray, gv_map: np.ndarray, sv_mask: np.ndarray, gv_mask: np.ndarray, bin_ids: np.ndarray, **extras):
-    """
-    Extracts stellar and gas velocity values in map from each bin.
-    
-    Returns values as flattened and masked numpy arrays.
+    """Flatten stellar/gas maps to one value per bin and apply masks.
+
+    Parameters
+    ----------
+    sv_map, gv_map : np.ndarray
+        Stellar and gas map arrays.
+    sv_mask, gv_mask : np.ndarray
+        Bitmask arrays for the corresponding maps.
+    bin_ids : np.ndarray
+        BINID cube used to index bin representatives.
+
+    Returns
+    -------
+    sv_flat, gv_flat : np.ma.MaskedArray
+        Flattened, masked stellar and gas values.
     """
 
     # Get the unique indices of the stellar and gas velocity bins
@@ -174,6 +237,7 @@ def mask_velocity_maps(sv_map: np.ndarray, gv_map: np.ndarray, sv_mask: np.ndarr
 
 
 def mask_binned_map(map, mask, bin_ids, **extras):
+    """Flatten a binned map to stellar-bin representatives and apply mask."""
 
     # Get the unique indices of the stellar and gas velocity bins
     _, sv_uindx, _, _ = return_bin_indices(bin_ids)
@@ -183,7 +247,8 @@ def mask_binned_map(map, mask, bin_ids, **extras):
     return flat
 
 
-def apply_bin_snr_threshold(sv_flat: np.ndarray, gv_flat: np.ndarray, bin_snr_flat: np.ndarray, snr_threshold: float, **extras):
+def apply_bin_snr_threshold(sv_flat, gv_flat, bin_snr_flat, snr_threshold: float, **extras):
+    """Mask stellar/gas bins below a bin-level SNR threshold."""
 
     if snr_threshold is None:
         return sv_flat, gv_flat
@@ -196,7 +261,8 @@ def apply_bin_snr_threshold(sv_flat: np.ndarray, gv_flat: np.ndarray, bin_snr_fl
     return sv_flat, gv_flat
 
 
-def apply_velocity_snr_threshold(sv_flat: np.ndarray, gv_flat: np.ndarray, sv_ivar_flat: np.ndarray, gv_ivar_flat: np.ndarray, snr_threshold: float, **extras):
+def apply_velocity_snr_threshold(sv_flat, gv_flat, sv_ivar_flat, gv_ivar_flat, snr_threshold: float, **extras):
+    """Mask bins below velocity SNR threshold computed from IVAR."""
 
     # Calculate S/N ratio of velocity values
     sv_snr = np.abs(sv_flat) / (1 / np.sqrt(sv_ivar_flat))
@@ -212,7 +278,8 @@ def apply_velocity_snr_threshold(sv_flat: np.ndarray, gv_flat: np.ndarray, sv_iv
     return sv_flat, gv_flat
 
 
-def apply_sigma_clip(sv_flat: np.ndarray, gv_flat: np.ndarray, n_sigma: float, **extras):
+def apply_sigma_clip(sv_flat, gv_flat, n_sigma: float, **extras):
+    """Apply symmetric n-sigma clipping to stellar and gas arrays."""
 
     # Apply sigma clip
     sv_excl = exclude_above_n_sigma(sv_flat, n_sigma)
@@ -223,7 +290,7 @@ def apply_sigma_clip(sv_flat: np.ndarray, gv_flat: np.ndarray, n_sigma: float, *
 
 def normalise_map(sv_excl, gv_excl, norm_method, **extras):
     """
-    Apply preprocessing steps to velocity maps before DVSG calculation.
+    Normalise preprocessed stellar and gas arrays with one method.
 
     Applies one of:
     - ``minmax``: map to [-1, 1]
@@ -264,6 +331,11 @@ def normalise_map(sv_excl, gv_excl, norm_method, **extras):
 # Multi-stage preprocessing functions
 # -----------------------------------
 def preprocess_maps_from_plateifu(plateifu: str, **dvsg_kwargs):
+    """Run the standard preprocessing chain for one plateifu.
+
+    Steps are: load maps, flatten/mask bins, optional bin-SNR cut,
+    sigma clipping, then map normalisation.
+    """
 
     # Load map
     sv_map, gv_map, sv_mask, gv_mask, _, _, bin_ids, bin_snr = load_maps(plateifu, **dvsg_kwargs)

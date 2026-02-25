@@ -19,15 +19,18 @@ __all__ = [
     "return_bin_coords",
 ]
 
+# ----------------------
+# Data loading functions
+# ----------------------
 def download_map_from_plateifu(plateifu, bintype, **extras):
-    """Attempts to download the map for a given plateifu and bintype, and prints an error if it fails.
+    """Download a remote MaNGA MAPS file for a plateifu and bintype.
 
     Parameters
     ----------
-    plateifu : _type_
-        _description_
-    bintype : _type_
-        _description_
+    plateifu : str
+        MaNGA plate-IFU identifier.
+    bintype : str
+        DAP binning type (for example ``VOR10``).
     """
 
     # Set Marvin release to DR17 and avoid API error
@@ -89,14 +92,14 @@ def load_local_hdul(plateifu : str, bintype: str, **extras):
 
 def load_maps(plateifu: str, mode: str, bintype: str, **extras):
     """
-    Loads stellar and gas velocity maps, masks, inverse variance maps, and bin information for a MaNGA galaxy.
+    Load MaNGA stellar/gas velocity products and bin metadata.
 
     Parameters
     ----------
     plateifu : str
         MaNGA plateifu of the galaxy
     mode : str
-        How to access the maps: "local" for local files, "remote" for Marvin API
+        Data access mode: ``local`` or ``remote``.
     bintype : str
         Binning type of the DAP product
 
@@ -114,24 +117,31 @@ def load_maps(plateifu: str, mode: str, bintype: str, **extras):
         Stellar velocity inverse variance
     gv_ivar : np.ndarray
         Gas velocity inverse variance
-    bin_ids : np.ndarray or None
-        Bin IDs for each spaxel (local only)
-    bin_snr : np.ndarray or None
-        Signal-to-noise ratio per bin (local only)
+    bin_ids : np.ndarray
+        BINID cube in DAP channel order.
+    bin_snr : np.ndarray
+        Bin signal-to-noise map.
     """
 
     if mode == "local":
-        hdul = load_local_hdul(plateifu, bintype)
+        try:
+            hdul = load_local_hdul(plateifu, bintype)
 
-        # Extract velocity maps, masks, and inverse variance
-        sv_map = hdul["STELLAR_VEL"].data
-        gv_map = hdul["EMLINE_GVEL"].data[23]  # H-alpha channel
-        sv_mask = hdul["STELLAR_VEL_MASK"].data
-        gv_mask = hdul["EMLINE_GVEL_MASK"].data[23]
-        sv_ivar = hdul["STELLAR_VEL_IVAR"].data
-        gv_ivar = hdul["EMLINE_GVEL_IVAR"].data[23]
-        bin_ids = hdul["BINID"].data
-        bin_snr = hdul["BIN_SNR"].data
+            # Extract velocity products
+            sv_map = hdul["STELLAR_VEL"].data
+            gv_map = hdul["EMLINE_GVEL"].data[23]  # H-alpha channel
+            sv_mask = hdul["STELLAR_VEL_MASK"].data
+            gv_mask = hdul["EMLINE_GVEL_MASK"].data[23]
+            sv_ivar = hdul["STELLAR_VEL_IVAR"].data
+            gv_ivar = hdul["EMLINE_GVEL_IVAR"].data[23]
+            
+            # Extract bin information
+            bin_ids = hdul["BINID"].data
+            bin_snr = hdul["BIN_SNR"].data
+
+        except Exception as e:
+            print(f"Error loading {plateifu} using local method: {e}")
+            return None
 
     elif mode == "remote":
         try:
@@ -140,17 +150,25 @@ def load_maps(plateifu: str, mode: str, bintype: str, **extras):
 
             maps = Maps(plateifu=plateifu, mode="remote", bintype=bintype)
 
-            # Extract maps and masks from Marvin object
-            sv_map = maps["stellar_vel"].value
-            gv_map = maps["emline_gvel_ha_6564"].value
-            sv_mask = maps["stellar_vel_mask"].value
-            gv_mask = maps["emline_gvel_mask_ha_6564"].value
-            sv_ivar = maps["stellar_vel_ivar"].data
-            gv_ivar = maps["emline_gvel_ivar_ha_6564"].value
+            # Extract velocity products
+            sv_map = maps.stellar_vel.value
+            gv_map = maps.emline_gvel_ha_6564.value
+            sv_mask = maps.stellar_vel_mask.value
+            gv_mask = maps.emline_gvel_mask_ha_6564.value
+            sv_ivar = maps.stellar_vel_ivar.value
+            gv_ivar = maps.emline_gvel_ivar_ha_6564.value
 
-            # Bin info is not available remotely
-            bin_ids = None
-            bin_snr = None
+            # Extract bin information
+            bin_ids = np.stack([
+                maps.binid_binned_spectra.value,
+                maps.binid_stellar_continua.value,
+                maps.binid_em_line_moments.value,
+                maps.binid_em_line_models.value,
+                maps.binid_spectral_indices.value,
+                ],
+                axis=0,
+            )
+            bin_snr = maps.bin_snr.value
 
         except Exception as e:
             print(f"Error loading {plateifu} using remote method: {e}")
@@ -164,27 +182,23 @@ def load_maps(plateifu: str, mode: str, bintype: str, **extras):
 
 def load_map_coords(plateifu: str, mode: str, bintype: str, **extras):
     """
-    Loads spatial coordinates of MaNGA maps in arcseconds for spaxels and bins.
+    Load map coordinate products for a MaNGA target.
 
     Parameters
     ----------
     plateifu : str
         MaNGA plateifu of the galaxy
     mode : str
-        How to access the maps: "local" or "remote"
+        Data access mode: ``local`` or ``remote``.
     bintype : str
         Binning type of the DAP product
 
     Returns
     -------
-    x_as : np.ndarray
-        Spaxel x offsets in arcseconds
-    y_as : np.ndarray
-        Spaxel y offsets in arcseconds
-    bin_ra : np.ndarray
-        RA of each bin
-    bin_dec : np.ndarray
-        DEC of each bin
+    x_as, y_as : np.ndarray
+        Spaxel offsets in arcseconds.
+    bin_ra, bin_dec : np.ndarray
+        Bin centre sky coordinates.
     """
 
     if mode == "local":
@@ -197,7 +211,7 @@ def load_map_coords(plateifu: str, mode: str, bintype: str, **extras):
         bin_ra, bin_dec = hdul["BIN_LWSKYCOO"].data
 
     elif mode == "remote":
-        # TODO: Add spatial info for remote maps
+        # Spatial coordinate access is not currently wired for remote mode.
         x_as, y_as, bin_ra, bin_dec = None, None, None, None
 
     else:
@@ -206,9 +220,12 @@ def load_map_coords(plateifu: str, mode: str, bintype: str, **extras):
     return x_as, y_as, bin_ra, bin_dec
 
 
+# ---------------------
+# Bin utility functions
+# ---------------------
 def return_bin_indices(bin_ids):
     """
-    Returns the unique bin IDs and their corresponding indices for stellar and gas velocity maps.
+    Return unique stellar/gas bin IDs and representative indices.
 
     Parameters
     ----------
@@ -217,14 +234,10 @@ def return_bin_indices(bin_ids):
 
     Returns
     -------
-    sv_ubins : np.ndarray
-        Unique stellar velocity bin IDs
-    sv_uindx : np.ndarray
-        Indices corresponding to the unique stellar bins
-    gv_ubins : np.ndarray
-        Unique gas velocity bin IDs
-    gv_uindx : np.ndarray
-        Indices corresponding to the unique gas bins
+    sv_ubins, gv_ubins : np.ndarray
+        Unique stellar and gas bin IDs.
+    sv_uindx, gv_uindx : np.ndarray
+        Indices of representative spaxels for each unique bin.
     """
 
     sv_bins = bin_ids[1]
@@ -238,7 +251,7 @@ def return_bin_indices(bin_ids):
 
 def return_bin_coord_centres(bin_ra, bin_dec, sv_uindx, gv_uindx):
     """
-    Returns the RA/DEC centres of each stellar and gas bin.
+    Return bin centre coordinates for stellar-bin index ordering.
 
     Parameters
     ----------
@@ -247,14 +260,14 @@ def return_bin_coord_centres(bin_ra, bin_dec, sv_uindx, gv_uindx):
     bin_dec : np.ndarray
         DEC of all bins
     sv_uindx : np.ndarray
-        Indices of unique stellar bins
+        Representative stellar bin indices.
     gv_uindx : np.ndarray
-        Indices of unique gas bins
+        Representative gas bin indices (accepted for API consistency).
 
     Returns
     -------
     bin_centres : np.ndarray
-        Array of shape (nbins, 2) containing [DEC, RA] of each bin centre
+        Array of shape ``(nbins, 2)`` with ``[DEC, RA]`` rows.
     """
 
     # Stellar bins used as reference; RA/DEC of each bin centre
@@ -267,7 +280,7 @@ def return_bin_coord_centres(bin_ra, bin_dec, sv_uindx, gv_uindx):
 
 def return_bin_coords(bin_ids):
     """
-    Returns the spaxel coordinates for each bin in the galaxy.
+    Return spaxel coordinate lists for each bin ID.
 
     Parameters
     ----------
@@ -276,8 +289,8 @@ def return_bin_coords(bin_ids):
 
     Returns
     -------
-    bin_coords_list : list of np.ndarray
-        List of (y, x) coordinates for each bin
+    bin_coords_list : list[np.ndarray]
+        One ``(n_spaxel, 2)`` array of ``(y, x)`` coordinates per bin.
     """
 
     nbins = np.size(np.unique(bin_ids)) - 1

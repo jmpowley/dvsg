@@ -5,12 +5,17 @@ from scipy.ndimage import rotate
 
 from .preprocessing import minmax_normalise_velocity_map
 
+__all__ = [
+    "cookie_cutter",
+    "circular_mask",
+    "MapModel",
+]
+
+# -------------
+# Mask helpers
+# -------------
 def cookie_cutter(array: np.ndarray, size: int, set_edges_to_nan: bool):
-        """
-        Cut the corners of an NxN square to make an 'octagon-like' mask,
-        then apply it to input_array. Works for NaNs too. 
-        The mask is created by four diagonal cuts.
-        """
+        """Apply an octagon-like edge mask to a square 2D array."""
 
         size = array.shape[0]
         if array.shape != (size, size):
@@ -87,7 +92,12 @@ def circular_mask(array: np.ndarray,
 
     return out
 
+# ---------------
+# Map model class
+# ---------------
 class MapModel:
+    """Create synthetic velocity maps for controlled DVSG tests."""
+
     def __init__(self, 
                  map_type: str, 
                  size: Optional[int] = 40, 
@@ -111,6 +121,7 @@ class MapModel:
         self._initialise_map()
 
     def _initialise_map(self):
+        """Build map from requested model type."""
         map_builders = {
             "rotation_dominated": self.rotation_dominated_map,
             "dispersion_dominated": self.dispersion_dominated_map,
@@ -125,6 +136,7 @@ class MapModel:
         self.map = builder(**self.map_kwargs)
 
     def _load_input(self):
+        """Load user-provided map and mask into the model."""
         map = self.input_map
         mask = self.input_mask
 
@@ -135,6 +147,7 @@ class MapModel:
         return self.map
 
     def _grid_r_theta(self):
+        """Return coordinate grids in map-centred Cartesian and polar form."""
         ny = nx = self.size
         y, x = np.indices((ny, nx))
         x0, y0 = self.center
@@ -146,6 +159,7 @@ class MapModel:
     
 
     def rotate_map(self, angle, set_edges_to_nan: bool = True):
+        """Rotate model map by angle and reapply edge/mask logic."""
 
         # Replace NaNs only in the temporary array for interpolation
         map_to_rotate = self.map.copy()
@@ -169,8 +183,7 @@ class MapModel:
 
     def rotation_dominated_map(self, v_max=200., r_turn=5., incl=60., pa=0., v_sys=0., normalise=True, return_meta=False):
         """
-        Build a simple axisymmetric rotation map (projected LOS velocity).
-        v_rot(R) = v_max * (1 - exp(-R / r_turn))
+        Build a toy axisymmetric rotation-dominated LOS velocity map.
         """
 
         # Convert to radians
@@ -209,7 +222,7 @@ class MapModel:
             return v_los_cut
 
     def dispersion_dominated_map(self, sigma0=80.0, normalise=True):
-        """Return a toy dispersion-dominated gas velocity map."""
+        """Build a toy dispersion-dominated velocity map."""
         # Zero mean, Gaussian scatter everywhere
         v_map = self.rng.normal(loc=0.0, scale=sigma0, size=(self.size, self.size))
 
@@ -223,13 +236,7 @@ class MapModel:
     def apply_asymmetric_drift(self, v_circ_map, sigma_R_map, surface_density_map,
                                kappa_factor=1.0):
         """
-        Apply a simple asymmetric drift correction to a circular velocity map.
-        This is a simplified version of the asymmetric drift eqn:
-          v_phi^2 = v_c^2 - sigma_R^2 * ( d ln(n sigma_R^2) / d ln R + 1 - sigma_phi^2/sigma_R^2 )
-        For simplicity we:
-         - approximate d ln(n sigma_R^2) / d ln R with finite differences
-         - assume sigma_phi^2/sigma_R^2 ~ 0.5 (epicyclic approx) or let user pass kappa_factor
-        Returns corrected stellar azimuthal velocity map v_phi (projected LOS unchanged).
+        Apply a simplified asymmetric-drift correction to a velocity field.
         """
         # compute radial derivative in log-space
         eps = 1e-8
