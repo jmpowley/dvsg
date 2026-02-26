@@ -20,7 +20,7 @@ A lower $\Delta V_{\star-g}$ value implies greater similarity between a galaxy's
 
 The `calculations` module contains functions to calculate the $\Delta V_{\star-g}$ value of a galaxy.
 
-The `modelling` module contains the `MapModel` class, which creates mock data to test how $\Delta V_{\star-g}$ changes when velocity maps are artificially rotated.
+The `modelling` module contains the `MapModel` class, which can create basic mock data and test how $\Delta V_{\star-g}$ changes when velocity maps are artificially rotated.
 
 The `plotting` module contains functions that can be used to quickly produce science plots from a $\Delta V_{\star-g}$ calculation.
 
