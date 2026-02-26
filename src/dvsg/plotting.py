@@ -278,7 +278,7 @@ def plot_stellar_gas_residual_maps(
     # Gas panel
     im1 = ax[1].imshow(gv_norm, cmap="RdBu_r", origin="lower", extent=[x_as.max(), x_as.min(), y_as.min(), y_as.max()])
     cb1 = ax[1].figure.colorbar(im1, ax=ax[1], fraction=0.05, pad=0.03)
-    cb1.set_label(r"$V_{\star}~\rm{[Norm.~(km~s^{-1})]}$", labelpad=labelpad, fontsize=labsize)
+    cb1.set_label(r"$V_{\rm g}~\rm{[Norm.~(km~s^{-1})]}$", labelpad=labelpad, fontsize=labsize)
     cb1.set_ticks(gv_loc.locs)
     cb1.set_ticklabels(gv_labs)
     cb1.ax.tick_params(axis="y", which="major", labelsize=tcksize)
@@ -362,13 +362,12 @@ def plot_stellar_gas_residual_visual_maps(
     cb0.set_ticks(sv_loc.locs)
     cb0.set_ticklabels(sv_labs)
     cb0.ax.tick_params(axis="y", which="major", labelsize=tcksize)
-    # -- add plateifu
     ax[0].text(0.03, 0.97, plateifu, fontsize=txtsize, transform=ax[0].transAxes, va="top", ha="left")
 
     # Gas panel
     im1 = ax[1].imshow(gv_norm, cmap="RdBu_r", origin="lower", extent=[x_as.max(), x_as.min(), y_as.min(), y_as.max()])
     cb1 = ax[1].figure.colorbar(im1, ax=ax[1], fraction=0.0465, pad=0.03)
-    cb1.set_label(r"$V_{\star}~\rm{[Norm.~(km~s^{-1})]}$", labelpad=labelpad, fontsize=labsize)
+    cb1.set_label(r"$V_{\rm{g}}~\rm{[Norm.~(km~s^{-1})]}$", labelpad=labelpad, fontsize=labsize)
     cb1.set_ticks(gv_loc.locs)
     cb1.set_ticklabels(gv_labs)
     cb1.ax.tick_params(axis="y", which="major", labelsize=tcksize)
@@ -385,38 +384,27 @@ def plot_stellar_gas_residual_visual_maps(
     ax[2].text(0.97, 0.00, dvsg_str, fontsize=txtsize, transform=ax[2].transAxes, va="bottom", ha="right")
 
     # Visual panel
-    print("Hello!")
-    print(type(image))
-
-    print(image.data.shape)
-
-    if isinstance(image, Image.Image):
-        image = np.asarray(image.data)
-    else:
-        image = np.asarray(image)
+    # if isinstance(image, Image.Image):
+    #     image = np.asarray(image.data)
+    # else:
+    #     image = np.asarray(image)
+    image = np.asarray(image)
     im3 = ax[3].imshow(image, origin="upper")
 
     # Subplot formatting
     for i in range(4):
-        
-        # all subplots
         ax[i].set_aspect("equal")
 
-        # first three subplots
+        # DVSG panels
         if i < 3:
-            
-            # overlay symbols
             if plot_bins:
                 ax[i].scatter(bin_ra, bin_dec, color="k", marker=".", s=50, lw=0)
             if r_eff is not None:
                 ax[i].add_patch(Circle((0, 0), r_eff, fill=False, edgecolor="k", linewidth=1.2, transform=ax[i].transData))
-            
-            # add labels
             ax[i].set_xlabel(r"$\Delta \alpha \ \;[\mathrm{arcsec}]$", size=labsize)
             ax[i].set_ylabel(r"$\Delta \delta \ \;[\mathrm{arcsec}]$", size=labsize)
-            # ax[i].invert_xaxis()
 
-        # image subplot
+        # Image panel
         elif i == 3:
             ax[i].set_xticks([])
             ax[i].set_yticks([])
