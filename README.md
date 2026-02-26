@@ -24,7 +24,7 @@ The `modelling` module contains the `MapModel` class, which can create basic moc
 
 The `plotting` module contains functions that can be used to quickly produce science plots from a $\Delta V_{\star-g}$ calculation.
 
-The `helpers` module contains commonly-used functions in the above modules.
+The `helpers` module contains commonly used functions in the above modules.
 
 ## Installation
 
