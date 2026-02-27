@@ -40,14 +40,14 @@ cd dvsg
 pip install -e .
 ```
 
-A core environment is provided in `environment-core.yml`:
-```bash
-conda env create -f environment-core.yml
-```
-
-An environment with MaNGA/Marvin dependencies is provided in `environment.yml`:
+A core environment is provided in `environment.yml`:
 ```bash
 conda env create -f environment.yml
+```
+
+An environment with MaNGA/Marvin dependencies is provided in `environment-manga.yml`:
+```bash
+conda env create -f environment-manga.yml
 ```
 
 Some functions in `helpers` rely on a local installation of MaNGA Data Analysis Pipeline (DAP) products. If you would like to use these functions, you will need to define the environment variables outlined in the [DAP documentation](https://sdss-mangadap.readthedocs.io/en/latest/execution.html#local-environment-setup-for-survey-level-manga-analysis).
