@@ -20,7 +20,7 @@ __all__ = [
 # ---------------------
 # Calculation functions
 # ---------------------
-def calculate_dvsg(sv_norm, gv_norm, **extras):
+def calculate_dvsg(sv_norm, gv_norm):
     """Calculate DVSG from aligned normalised stellar and gas arrays.
 
     Parameters
@@ -49,7 +49,7 @@ def calculate_dvsg(sv_norm, gv_norm, **extras):
     return dvsg
 
 
-def calculate_dvsg_residual(sv_norm, gv_norm, **extras):
+def calculate_dvsg_residual(sv_norm, gv_norm):
     """Calculate DVSG from aligned normalised stellar and gas arrays.
 
     Parameters
@@ -74,7 +74,7 @@ def calculate_dvsg_residual(sv_norm, gv_norm, **extras):
     return residual
 
 
-def calculate_dvsg_error(sv_ivar, gv_ivar, sv_clip, gv_clip, **extras):
+def calculate_dvsg_error(sv_ivar, gv_ivar, sv_clip, gv_clip):
     """Calculate analytic DVSG uncertainty from IVAR maps.
 
     Parameters
@@ -160,7 +160,7 @@ def calculate_dvsg_from_plateifu(plateifu, **dvsg_kwargs):
     sv_norm, gv_norm = preprocess_maps_from_plateifu(plateifu, **dvsg_kwargs)
 
     # Calculate DVSG
-    dvsg = calculate_dvsg(sv_norm, gv_norm, **dvsg_kwargs)
+    dvsg = calculate_dvsg(sv_norm, gv_norm)
 
     return dvsg
 
@@ -194,10 +194,10 @@ def calculate_dvsg_diagnostics_from_plateifu(plateifu, **dvsg_kwargs):
     sv_clip, gv_clip = apply_sigma_clip(sv_flat, gv_flat, **dvsg_kwargs)
 
     output = {}
-    output["dvsg"] = calculate_dvsg(sv_norm, gv_norm, **dvsg_kwargs)
-    output["dvsg_err"] = calculate_dvsg_error(sv_ivar_flat, gv_ivar_flat, sv_clip, gv_clip, **dvsg_kwargs)
+    output["dvsg"] = calculate_dvsg(sv_norm, gv_norm)
+    output["dvsg_err"] = calculate_dvsg_error(sv_ivar_flat, gv_ivar_flat, sv_clip, gv_clip)
     if dvsg_kwargs.get("return_residual", False):
-        output["residual"] = calculate_dvsg_residual(sv_norm, gv_norm, **dvsg_kwargs)
+        output["residual"] = calculate_dvsg_residual(sv_norm, gv_norm)
 
     return output
 
