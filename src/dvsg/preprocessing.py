@@ -5,10 +5,6 @@ from .helpers import return_bin_indices, load_maps
 __all__ = [
     "exclude_above_n_sigma",
     "minmax_normalise_velocity_map",
-    "zscore1_normalise_velocity_map",
-    "zscore5_normalise_velocity_map",
-    "robust_scale_velocity_map",
-    "mad5_normalise_velocity_map",
     "mask_velocity_maps",
     "mask_binned_map",
     "apply_bin_snr_threshold",
@@ -288,41 +284,23 @@ def apply_sigma_clip(sv_flat, gv_flat, n_sigma: float, **extras):
     return sv_excl, gv_excl
 
 
-def normalise_map(sv_excl, gv_excl, norm_method, **extras):
-    """
-    Normalise preprocessed stellar and gas arrays with one method.
+def normalise_map(sv_excl, gv_excl, **extras):
+    """Normalise preprocessed stellar and gas arrays using min-max scaling.
 
-    Applies one of:
-    - ``minmax``: map to [-1, 1]
-    - ``zscore1``: standard z-score
-    - ``zscore5``: z-score scaled by 5σ
-    - ``robust``: median/IQR scaling
-    - ``mad5``: median/MAD scaling with 5σ equivalent
-
+    Parameters
+    ----------
+    sv_excl : array_like
+        Preprocessed stellar velocity map values.
+    gv_excl : array_like
+        Preprocessed gas velocity map values.
     Returns
     -------
     sv_norm, gv_norm : np.ndarray
-        Preprocessed stellar and gas velocity maps.
+        Normalised stellar and gas velocity maps.
     """
 
-    # Normalise velocity map
-    if norm_method == "minmax":
-        sv_norm = minmax_normalise_velocity_map(sv_excl)
-        gv_norm = minmax_normalise_velocity_map(gv_excl)
-    elif norm_method == "zscore1":
-        sv_norm = zscore1_normalise_velocity_map(sv_excl)
-        gv_norm = zscore1_normalise_velocity_map(gv_excl)
-    elif norm_method == "zscore5":
-        sv_norm = zscore5_normalise_velocity_map(sv_excl)
-        gv_norm = zscore5_normalise_velocity_map(gv_excl)
-    elif norm_method == "robust":
-        sv_norm = robust_scale_velocity_map(sv_excl)
-        gv_norm = robust_scale_velocity_map(gv_excl)
-    elif norm_method == "mad5":
-        sv_norm = mad5_normalise_velocity_map(sv_excl)
-        gv_norm = mad5_normalise_velocity_map(gv_excl)
-    else:
-        raise ValueError("norm_method must be 'minmax', 'zscore1', 'zscore5', 'robust' or 'mad5'")
+    sv_norm = minmax_normalise_velocity_map(sv_excl)
+    gv_norm = minmax_normalise_velocity_map(gv_excl)
 
     return sv_norm, gv_norm
 
@@ -336,6 +314,11 @@ def preprocess_maps_from_plateifu(plateifu: str, **dvsg_kwargs):
     Steps are: load maps, flatten/mask bins, optional bin-SNR cut,
     sigma clipping, then map normalisation.
     """
+    if "norm_method" in dvsg_kwargs:
+        raise TypeError(
+            "norm_method is no longer supported in the public DVSG pipeline. "
+            "The pipeline now always uses min-max normalisation."
+        )
 
     # Load map
     sv_map, gv_map, sv_mask, gv_mask, _, _, bin_ids, bin_snr = load_maps(plateifu, **dvsg_kwargs)
