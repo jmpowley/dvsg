@@ -28,26 +28,41 @@ The `helpers` module contains commonly used functions in the above modules.
 
 ## Installation
 
-You can install the latest version of `dvsg` directly from GitHub using pip:
+Choose installation mode based on whether you need only core DVSG calculations,
+or full MaNGA/Marvin map-loading support.
+
+### Using pip
+
 ```bash
-pip install git+https://github.com/jmpowley/dvsg.git
+# Core DVSG dependencies only
+pip install dvsg
+
+# Core + MaNGA/Marvin dependencies
+pip install "dvsg[manga]"
 ```
 
-If you wish to install the latest development version of the code, clone the repository and install in editable mode:
+### Using conda
+
 ```bash
+# Core environment
+conda env create -f environment.yml
+
+# Environment with MaNGA/Marvin dependencies
+conda env create -f environment-manga.yml
+```
+
+### Development mode
+
+```bash
+# Clone the repository
 git clone https://github.com/jmpowley/dvsg.git
 cd dvsg
+
+# Core editable install
 pip install -e .
-```
 
-A core environment is provided in `environment.yml`:
-```bash
-conda env create -f environment.yml
-```
-
-An environment with MaNGA/Marvin dependencies is provided in `environment-manga.yml`:
-```bash
-conda env create -f environment-manga.yml
+# Editable install with MaNGA/Marvin support
+pip install -e ".[manga]"
 ```
 
 Some functions in `helpers` rely on a local installation of MaNGA Data Analysis Pipeline (DAP) products. If you would like to use these functions, you will need to define the environment variables outlined in the [DAP documentation](https://sdss-mangadap.readthedocs.io/en/latest/execution.html#local-environment-setup-for-survey-level-manga-analysis).
