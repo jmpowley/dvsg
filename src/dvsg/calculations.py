@@ -9,7 +9,6 @@ from .preprocessing import preprocess_maps_from_plateifu, mask_velocity_maps, ma
 
 __all__ = [
     "calculate_dvsg",
-    "calculate_dvsg_diagnostics",
     "calculate_radial_dvsg",
     "calculate_dvsg_error",
     "calculate_dvsg_from_plateifu",
@@ -50,12 +49,6 @@ def calculate_dvsg(sv_norm, gv_norm, **extras):
     -------
     dvsg : float
         The DVSG value of a galaxy
-
-    Raises
-    ------
-    Exception
-        If input shapes do not match.
-
     """
 
     if not np.shape(sv_norm) == np.shape(gv_norm):
@@ -71,8 +64,8 @@ def calculate_dvsg(sv_norm, gv_norm, **extras):
     return dvsg
 
 
-def calculate_dvsg_diagnostics(sv_norm, gv_norm, **extras):
-    """Calculate DVSG and return basic diagnostic products.
+def calculate_dvsg_residual(sv_norm, gv_norm, **extras):
+    """Calculate DVSG from aligned normalised stellar and gas arrays.
 
     Parameters
     ----------
@@ -83,65 +76,17 @@ def calculate_dvsg_diagnostics(sv_norm, gv_norm, **extras):
 
     Returns
     -------
-    dvsg_output : dict
-        Dictionary containing ``dvsg``, ``dvsg_stderr`` and ``residual``.
+    residual : np.ndarray
+        The residual value per bin.
 
-    Raises
-    ------
-    Exception
-        If input shapes do not match.
     """
 
     if not np.shape(sv_norm) == np.shape(gv_norm):
         raise Exception('sv_norm and gv_norm must have the same shape. Currently have shapes ' + str(np.shape(sv_norm)) + ' and ' + str(np.shape(gv_norm)))
 
     residual = np.abs(sv_norm - gv_norm)
-    n_valid = np.count_nonzero(np.isfinite(residual))
-    if n_valid == 0:
-        dvsg = np.nan
-    else:
-        dvsg = np.nanmean(residual)
-    if n_valid == 0:
-        dvsg_stderr = np.nan
-    else:
-        dvsg_stderr = np.nanstd(residual) / np.sqrt(n_valid)
 
-    # Compile output
-    dvsg_output = {}
-    dvsg_output["dvsg"] = dvsg
-    dvsg_output["dvsg_stderr"] = dvsg_stderr
-    dvsg_output["residual"] = residual
-
-    return dvsg_output
-
-
-def calculate_radial_dvsg(bin_centres, residual, sort_ascending: bool, **extras):
-    """Return bin radii and residuals, optionally sorted by radius.
-
-    Parameters
-    ----------
-    bin_centres : array_like
-        Bin coordinates as ``(n_bin, 2)``.
-    residual : array_like
-        Residual value per bin.
-    sort_ascending : bool
-        If True, sort outputs by radius.
-
-    Returns
-    -------
-    bin_dists : array_like
-        Distance of each bin from map centre.
-    residual : array_like
-        Input residuals, optionally sorted by radius.
-    """
-
-    # Calculate distance from each bin to centre
-    bin_dists = np.sqrt(np.sum(bin_centres**2, axis=1))  # (x^2+y^2) summed along co-ordinate axis then sqrted
-
-    if sort_ascending:
-        bin_dists, residual = zip(*sorted(zip(bin_dists, residual)))
-
-    return bin_dists, residual
+    return residual
 
 
 def calculate_dvsg_error(sv_ivar, gv_ivar, sv_clip, gv_clip, **extras):
@@ -186,6 +131,36 @@ def calculate_dvsg_error(sv_ivar, gv_ivar, sv_clip, gv_clip, **extras):
     dvsg_err = (1.0 / n) * np.sqrt(np.nansum(term))
 
     return dvsg_err
+
+
+def calculate_radial_dvsg(bin_centres, residual, sort_ascending: bool, **extras):
+    """Return bin radii and residuals, optionally sorted by radius.
+
+    Parameters
+    ----------
+    bin_centres : array_like
+        Bin coordinates as ``(n_bin, 2)``.
+    residual : array_like
+        Residual value per bin.
+    sort_ascending : bool
+        If True, sort outputs by radius.
+
+    Returns
+    -------
+    bin_dists : array_like
+        Distance of each bin from map centre.
+    residual : array_like
+        Input residuals, optionally sorted by radius.
+    """
+
+    # Calculate distance from each bin to centre
+    bin_dists = np.sqrt(np.sum(bin_centres**2, axis=1))  # (x^2+y^2) summed along co-ordinate axis then sqrted
+
+    if sort_ascending:
+        bin_dists, residual = zip(*sorted(zip(bin_dists, residual)))
+
+    return bin_dists, residual
+
 
 # TODO: Add radial DVSG error
 
@@ -236,19 +211,11 @@ def calculate_dvsg_diagnostics_from_plateifu(plateifu, **dvsg_kwargs):
         sv_flat, gv_flat = apply_bin_snr_threshold(sv_flat, gv_flat, bin_snr_flat, **dvsg_kwargs)
     sv_clip, gv_clip = apply_sigma_clip(sv_flat, gv_flat, **dvsg_kwargs)
 
-    # Calculate DVSG
-    results = calculate_dvsg_diagnostics(sv_norm, gv_norm, **dvsg_kwargs)
-
-    # Prepare output
-    output = {
-        "dvsg": results["dvsg"],
-    }
-
+    output = {}
+    output["dvsg"] = calculate_dvsg(sv_norm, gv_norm, **dvsg_kwargs)
     output["dvsg_err"] = calculate_dvsg_error(sv_ivar_flat, gv_ivar_flat, sv_clip, gv_clip, **dvsg_kwargs)
-
-    # Residual handling
     if dvsg_kwargs.get("return_residual", False):
-        output["residual"] = results["residual"]
+        output["residual"] = calculate_dvsg_residual(sv_norm, gv_norm, **dvsg_kwargs)
 
     return output
 
@@ -262,7 +229,7 @@ def calculate_radial_dvsg_from_plateifu(plateifu: str, dvsg_kwargs: dict):
     # Load preprocessed maps
     sv_norm, gv_norm = preprocess_maps_from_plateifu(plateifu, **dvsg_kwargs)
 
-    output = calculate_dvsg_diagnostics(sv_norm, gv_norm)
+    output = calculate_dvsg_diagnostics_from_plateifu(plateifu, **dvsg_kwargs)
     residual = output["residual"]
 
     # Load bin information
