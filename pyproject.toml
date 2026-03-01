@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "dvsg"
 version = "0.1.0"
-description = "Tools used for the calculation of DVSG values"
+description = "Python code to the calculate the kinematic disturbance parameter DVSG"
 readme = "README.md"
 requires-python = ">=3.11,<3.12"
 dependencies = [
