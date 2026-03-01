@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=61", "wheel"]
+requires = ["setuptools>=61,<81", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -7,20 +7,22 @@ name = "dvsg"
 version = "0.1.0"
 description = "Tools used for the calculation of DVSG values"
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.11,<3.12"
 dependencies = [
-  "numpy>=1.26",
-  "scipy>=1.13",
-  "astropy>=6.0",
+  "numpy>=1.26.4,<2",
+  "scipy>=1.13.1",
+  "matplotlib>=3.8",
+  "astropy>=6,<7",
+  "packaging==20.9",
+  "marshmallow<4",
+  "webargs<6",
+  "marvin",
+  "sdss-marvin>=2.8.2",
+  "sdss-mangadap>=4.3.0",
 ]
 
 [project.optional-dependencies]
-manga = [
-  "sdss-marvin>=2.8.1",
-  "sdss-mangadap==4.1.1",
-]
 plotting = [
-  "matplotlib>=3.9",
   "smplotlib",
 ]
 dev = [
