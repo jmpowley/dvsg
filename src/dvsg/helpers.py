@@ -19,6 +19,15 @@ __all__ = [
     "return_bin_coords",
 ]
 
+
+def _initialise_remote_access():
+    """Initialise remote access to MaNGA data by setting Marvin configuration."""
+
+    # Set Marvin release to DR17 and avoid API error
+    config.setDR("DR17")
+    config.switchSasUrl(sasmode="mirror")
+
+
 # ----------------------
 # Data loading functions
 # ----------------------
@@ -33,11 +42,8 @@ def download_map_from_plateifu(plateifu, bintype, **extras):
         DAP binning type (for example ``VOR10``).
     """
 
-    # Set Marvin release to DR17 and avoid API error
-    config.setDR("DR17")
-    config.switchSasUrl(sasmode="mirror")
-
     try:
+        _initialise_remote_access()
         map = Maps(plateifu, mode="remote", bintype=bintype)
         map.download()
         print(f"Map {plateifu} downloaded!")
@@ -144,9 +150,7 @@ def load_maps(plateifu: str, mode: str, bintype: str, **extras):
 
     elif mode == "remote":
         try:
-            config.setDR("DR17")
-            config.switchSasUrl(sasmode="mirror")
-
+            _initialise_remote_access()
             maps = Maps(plateifu=plateifu, mode="remote", bintype=bintype)
 
             # Extract velocity products
@@ -211,8 +215,13 @@ def load_map_coords(plateifu: str, mode: str, bintype: str, **extras):
         bin_ra, bin_dec = hdul["BIN_LWSKYCOO"].data
 
     elif mode == "remote":
-        # Spatial coordinate access is not currently wired for remote mode.
-        x_as, y_as, bin_ra, bin_dec = None, None, None, None
+        _initialise_remote_access()
+        maps = Maps(plateifu=plateifu, mode="remote", bintype=bintype)
+        
+        x_as = maps.spx_skycoo_x.value
+        y_as = maps.spx_skycoo_y.value
+        bin_ra = maps.bin_lwskycoo_ra.value
+        bin_dec = maps.bin_lwskycoo_dec.value
 
     else:
         raise ValueError(f"Invalid mode, got {mode}")
