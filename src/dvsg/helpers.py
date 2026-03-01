@@ -154,8 +154,8 @@ def load_maps(plateifu: str, mode: str, bintype: str, **extras):
             maps = Maps(plateifu=plateifu, mode="remote", bintype=bintype)
 
             # Extract velocity products
-            sv = maps.stellar_vel
-            gv = maps.emline_gvel_ha_6564
+            sv = maps.getMap("stellar_vel")
+            gv = maps.getMap("emline_gvel_ha_6564")
             sv_map = sv.value
             gv_map = gv.value
             sv_mask = np.asarray(sv.mask)
@@ -165,15 +165,15 @@ def load_maps(plateifu: str, mode: str, bintype: str, **extras):
 
             # Extract bin information
             bin_ids = np.stack([
-                maps.binid_binned_spectra.value,
-                maps.binid_stellar_continua.value,
-                maps.binid_em_line_moments.value,
-                maps.binid_em_line_models.value,
-                maps.binid_spectral_indices.value,
+                maps.getMap("binid_binned_spectra").value,
+                maps.getMap("binid_stellar_continua").value,
+                maps.getMap("binid_em_line_moments").value,
+                maps.getMap("binid_em_line_models").value,
+                maps.getMap("binid_spectral_indices").value,
                 ],
                 axis=0,
             )
-            bin_snr = maps.bin_snr.value
+            bin_snr = maps.getMap("bin_snr").value
 
         except Exception as e:
             raise RuntimeError(f"Error loading {plateifu} using remote method: {e}") from e
@@ -217,11 +217,10 @@ def load_map_coords(plateifu: str, mode: str, bintype: str, **extras):
     elif mode == "remote":
         _initialise_remote_access()
         maps = Maps(plateifu=plateifu, mode="remote", bintype=bintype)
-        
-        x_as = maps.spx_skycoo_x.value
-        y_as = maps.spx_skycoo_y.value
-        bin_ra = maps.bin_lwskycoo_ra.value
-        bin_dec = maps.bin_lwskycoo_dec.value
+        x_as = maps.getMap("spx_skycoo_on_sky_x").value
+        y_as = maps.getMap("spx_skycoo_on_sky_y").value
+        bin_ra = maps.getMap("bin_lwskycoo_lum_weighted_on_sky_x").value
+        bin_dec = maps.getMap("bin_lwskycoo_lum_weighted_on_sky_y").value
 
     else:
         raise ValueError(f"Invalid mode, got {mode}")
