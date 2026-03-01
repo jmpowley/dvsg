@@ -17,21 +17,6 @@ __all__ = [
     "return_dvsg_table_from_plateifus",
 ]
 
-
-def _reject_legacy_pipeline_kwargs(dvsg_kwargs: dict):
-    """Reject legacy pipeline kwargs that are no longer public options."""
-    if "error_type" in dvsg_kwargs:
-        raise TypeError(
-            "error_type is no longer supported in the DVSG pipeline. "
-            "DVSG uncertainty is now always computed analytically."
-        )
-    if "norm_method" in dvsg_kwargs:
-        raise TypeError(
-            "norm_method is no longer supported in the DVSG pipeline. "
-            "The pipeline now always uses min-max normalisation."
-        )
-
-
 # ---------------------
 # Calculation functions
 # ---------------------
@@ -170,7 +155,6 @@ def calculate_radial_dvsg(bin_centres, residual, sort_ascending: bool, **extras)
 
 def calculate_dvsg_from_plateifu(plateifu, **dvsg_kwargs):
     """Calculate DVSG for one plateifu using pipeline kwargs."""
-    _reject_legacy_pipeline_kwargs(dvsg_kwargs)
 
     # Load preprocessed maps
     sv_norm, gv_norm = preprocess_maps_from_plateifu(plateifu, **dvsg_kwargs)
@@ -197,8 +181,6 @@ def calculate_dvsg_diagnostics_from_plateifu(plateifu, **dvsg_kwargs):
         Dictionary containing ``dvsg`` and ``dvsg_err`` with optional
         ``residual`` when ``return_residual=True``.
     """
-    _reject_legacy_pipeline_kwargs(dvsg_kwargs)
-
     # Load preprocessed maps
     sv_norm, gv_norm = preprocess_maps_from_plateifu(plateifu, **dvsg_kwargs)
 
@@ -222,8 +204,6 @@ def calculate_dvsg_diagnostics_from_plateifu(plateifu, **dvsg_kwargs):
 
 def calculate_radial_dvsg_from_plateifu(plateifu: str, dvsg_kwargs: dict):
     """Calculate radial DVSG components for one plateifu."""
-    _reject_legacy_pipeline_kwargs(dvsg_kwargs)
-
     # TODO: Refactor
 
     # Load preprocessed maps
@@ -259,8 +239,6 @@ def return_dvsg_table_from_plateifus(plateifus, **dvsg_kwargs):
     astropy.table.Table
         Table with ``plateifu``, ``dvsg`` and masked ``dvsg_err`` columns.
     """
-    _reject_legacy_pipeline_kwargs(dvsg_kwargs)
-
     # Create lists to store DVSG data
     dvsgs = []
     dvsg_errs = []
