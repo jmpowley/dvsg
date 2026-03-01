@@ -11,14 +11,26 @@ __all__ = [
     "calculate_dvsg",
     "calculate_dvsg_diagnostics",
     "calculate_radial_dvsg",
-    "calculate_dvsg_error_analytic",
+    "calculate_dvsg_error",
     "calculate_dvsg_from_plateifu",
     "calculate_dvsg_diagnostics_from_plateifu",
     "calculate_radial_dvsg_from_plateifu",
     "return_dvsg_table_from_plateifus",
 ]
 
-_VALID_ERROR_TYPES = {"analytic", "stderr"}
+
+def _reject_legacy_pipeline_kwargs(dvsg_kwargs: dict):
+    """Reject legacy pipeline kwargs that are no longer public options."""
+    if "error_type" in dvsg_kwargs:
+        raise TypeError(
+            "error_type is no longer supported in the DVSG pipeline. "
+            "DVSG uncertainty is now always computed analytically."
+        )
+    if "norm_method" in dvsg_kwargs:
+        raise TypeError(
+            "norm_method is no longer supported in the DVSG pipeline. "
+            "The pipeline now always uses min-max normalisation."
+        )
 
 
 # ---------------------
@@ -132,7 +144,7 @@ def calculate_radial_dvsg(bin_centres, residual, sort_ascending: bool, **extras)
     return bin_dists, residual
 
 
-def calculate_dvsg_error_analytic(sv_ivar, gv_ivar, sv_clip, gv_clip, norm_method, **extras):
+def calculate_dvsg_error(sv_ivar, gv_ivar, sv_clip, gv_clip, **extras):
     """Calculate analytic DVSG uncertainty from IVAR maps.
 
     Parameters
@@ -145,18 +157,11 @@ def calculate_dvsg_error_analytic(sv_ivar, gv_ivar, sv_clip, gv_clip, norm_metho
         Sigma-clipped stellar velocity map
     gv_clip : array_like
         Sigma-clipped gas velocity map
-    norm_method : str
-        Normalisation method used in DVSG calculation.
-
     Returns
     -------
     dvsg_err : float or None
-        Uncertainty from error propagation. Returns ``None`` unless
-        ``norm_method == "minmax"``.
+        Uncertainty from error propagation.
     """
-
-    if norm_method != "minmax":
-        return None
 
     # Calculate unnormalised ranges
     sv_range = np.nanmax(sv_clip) - np.nanmin(sv_clip)
@@ -173,16 +178,16 @@ def calculate_dvsg_error_analytic(sv_ivar, gv_ivar, sv_clip, gv_clip, norm_metho
     # Check for null entries
     n = np.count_nonzero(ok)
     if n == 0:
-        warnings.warn("analytic DVSG error could not be calculated: no okay points", UserWarning)
+        warnings.warn("DVSG error could not be calculated: no okay points", UserWarning)
         return None
 
-    # Calculate analytic error
+    # Calculate error
     term = ((2.0 / sv_range) * sv_err) ** 2 + ((2.0 / gv_range) * gv_err) ** 2
     dvsg_err = (1.0 / n) * np.sqrt(np.nansum(term))
 
     return dvsg_err
 
-# TODO: Add radial DVSG analytic error
+# TODO: Add radial DVSG error
 
 # ----------------------
 # Routines from plateifu
@@ -190,6 +195,7 @@ def calculate_dvsg_error_analytic(sv_ivar, gv_ivar, sv_clip, gv_clip, norm_metho
 
 def calculate_dvsg_from_plateifu(plateifu, **dvsg_kwargs):
     """Calculate DVSG for one plateifu using pipeline kwargs."""
+    _reject_legacy_pipeline_kwargs(dvsg_kwargs)
 
     # Load preprocessed maps
     sv_norm, gv_norm = preprocess_maps_from_plateifu(plateifu, **dvsg_kwargs)
@@ -213,9 +219,10 @@ def calculate_dvsg_diagnostics_from_plateifu(plateifu, **dvsg_kwargs):
     Returns
     -------
     dict
-        Dictionary containing ``dvsg`` and optional keys:
-        ``dvsg_err`` and ``residual``.
+        Dictionary containing ``dvsg`` and ``dvsg_err`` with optional
+        ``residual`` when ``return_residual=True``.
     """
+    _reject_legacy_pipeline_kwargs(dvsg_kwargs)
 
     # Load preprocessed maps
     sv_norm, gv_norm = preprocess_maps_from_plateifu(plateifu, **dvsg_kwargs)
@@ -237,17 +244,7 @@ def calculate_dvsg_diagnostics_from_plateifu(plateifu, **dvsg_kwargs):
         "dvsg": results["dvsg"],
     }
 
-    # Error handling
-    error_type = dvsg_kwargs.get("error_type", None)
-    if error_type is not None and error_type not in _VALID_ERROR_TYPES:
-        allowed = ", ".join(sorted(_VALID_ERROR_TYPES))
-        raise ValueError(f"Unknown error_type: {error_type}. Allowed values are: {allowed}")
-    elif error_type is not None:
-        if error_type == "stderr":
-            dvsg_err = results["dvsg_stderr"]
-        elif error_type == "analytic":
-            dvsg_err = calculate_dvsg_error_analytic(sv_ivar_flat, gv_ivar_flat, sv_clip, gv_clip, **dvsg_kwargs)
-        output["dvsg_err"] = dvsg_err
+    output["dvsg_err"] = calculate_dvsg_error(sv_ivar_flat, gv_ivar_flat, sv_clip, gv_clip, **dvsg_kwargs)
 
     # Residual handling
     if dvsg_kwargs.get("return_residual", False):
@@ -258,6 +255,7 @@ def calculate_dvsg_diagnostics_from_plateifu(plateifu, **dvsg_kwargs):
 
 def calculate_radial_dvsg_from_plateifu(plateifu: str, dvsg_kwargs: dict):
     """Calculate radial DVSG components for one plateifu."""
+    _reject_legacy_pipeline_kwargs(dvsg_kwargs)
 
     # TODO: Refactor
 
@@ -294,6 +292,7 @@ def return_dvsg_table_from_plateifus(plateifus, **dvsg_kwargs):
     astropy.table.Table
         Table with ``plateifu``, ``dvsg`` and masked ``dvsg_err`` columns.
     """
+    _reject_legacy_pipeline_kwargs(dvsg_kwargs)
 
     # Create lists to store DVSG data
     dvsgs = []

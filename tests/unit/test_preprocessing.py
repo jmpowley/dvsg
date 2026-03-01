@@ -8,6 +8,7 @@ from dvsg.preprocessing import (
     mad5_normalise_velocity_map,
     minmax_normalise_velocity_map,
     normalise_map,
+    preprocess_maps_from_plateifu,
     zscore1_normalise_velocity_map,
 )
 
@@ -75,22 +76,22 @@ def test_apply_sigma_clip_applies_to_both_maps_consistently():
     assert np.isnan(gv_out[2])
 
 
-def test_normalise_map_rejects_unknown_method():
-    sv = np.array([0.0, 1.0, 2.0])
-    gv = np.array([0.0, 1.0, 2.0])
-
-    with pytest.raises(ValueError, match="norm_method"):
-        normalise_map(sv, gv, norm_method="unknown")
-
-
 def test_regression_sigma_clip_then_minmax_output_snapshot():
     sv = np.array([-2.0, -1.0, 0.0, 1.0, 2.0, 100.0])
     gv = np.array([-2.0, -1.0, 0.0, 1.0, 2.0, -100.0])
 
     sv_clip, gv_clip = apply_sigma_clip(sv, gv, n_sigma=2)
-    sv_norm, gv_norm = normalise_map(sv_clip, gv_clip, norm_method="minmax")
+    sv_norm, gv_norm = normalise_map(sv_clip, gv_clip)
 
     expected = np.array([-1.0, -0.5, 0.0, 0.5, 1.0, np.nan])
 
     assert np.allclose(sv_norm, expected, equal_nan=True)
     assert np.allclose(gv_norm, expected, equal_nan=True)
+
+
+def test_preprocess_maps_rejects_legacy_norm_method_kwarg():
+    with pytest.raises(TypeError, match="norm_method is no longer supported"):
+        preprocess_maps_from_plateifu(
+            "0000-0000",
+            norm_method="zscore1",
+        )
