@@ -1,14 +1,7 @@
 import numpy as np
 
-try:
-    import smplotlib
-except ImportError:
-    smplotlib = None
-import matplotlib.pyplot as plt
 from matplotlib.patches import Circle
 from matplotlib.ticker import FixedLocator
-
-from PIL import Image
 
 from mangadap.util.fitsutil import DAPFitsUtil
 
