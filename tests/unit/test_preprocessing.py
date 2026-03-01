@@ -5,11 +5,9 @@ from dvsg.preprocessing import (
     apply_bin_snr_threshold,
     apply_sigma_clip,
     exclude_above_n_sigma,
-    mad5_normalise_velocity_map,
     minmax_normalise_velocity_map,
     normalise_map,
     preprocess_maps_from_plateifu,
-    zscore1_normalise_velocity_map,
 )
 
 
@@ -26,21 +24,6 @@ def test_minmax_normalise_maps_to_minus1_plus1():
 def test_minmax_normalise_returns_nan_for_constant_map():
     arr = np.full((2, 2), 5.0)
     out = minmax_normalise_velocity_map(arr)
-
-    assert np.isnan(out).all()
-
-
-def test_zscore1_normalise_zero_mean_unit_std_for_simple_case():
-    arr = np.array([1.0, 2.0, 3.0, 4.0])
-    out = zscore1_normalise_velocity_map(arr)
-
-    assert np.nanmean(out) == pytest.approx(0.0, abs=1e-12)
-    assert np.nanstd(out, ddof=1) == pytest.approx(1.0, abs=1e-12)
-
-
-def test_mad5_normalise_returns_nan_for_zero_mad():
-    arr = np.array([2.0, 2.0, 2.0, 2.0])
-    out = mad5_normalise_velocity_map(arr)
 
     assert np.isnan(out).all()
 
